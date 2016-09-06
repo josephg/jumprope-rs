@@ -1,0 +1,6 @@
+[package]
+name = "jumprope"
+version = "0.1.0"
+authors = ["Joseph Gentle <me@josephg.com>"]
+
+[dependencies]
