@@ -1,3 +1,4 @@
+extern crate rand;
 
 use std::mem;
 use std::ptr;
@@ -69,6 +70,17 @@ fn max_height() -> u8 {
     (NODE_SIZE / mem::size_of::<SkipEntry>()) as u8 + 1
 }
 
+fn random_height() -> u8{
+    use rand::Rng;
+
+    let max = max_height();
+    let mut rng = rand::thread_rng();
+
+    let mut h = 1;
+    while h < max && rng.gen::<bool>() { h+=1; }
+    h
+}
+
 pub struct JumpRope {
     // The total number of characters in the rope
 	num_chars: usize,
@@ -101,14 +113,16 @@ impl Node {
         }
     }
 
+    fn capacity(&self) -> usize {
+        NODE_SIZE - (self.height as usize - 1) * mem::size_of::<SkipEntry>()
+    }
+
     fn content(&self) -> &[u8] {
         unsafe {
             // TODO: Could rewrite this safely just using the size of SkipEntry as an offset to
             // make a slice the normal way.
-            let start: *const u8 = (&self.skips as *const SkipEntry).offset(self.height as isize) as *const u8;
-            let len = NODE_SIZE - (self.height as usize - 1) * mem::size_of::<SkipEntry>();
-
-            std::slice::from_raw_parts(start, len)
+            let start = (&self.skips as *const SkipEntry).offset(self.height as isize) as *const u8;
+            std::slice::from_raw_parts(start, self.capacity())
         }
     }
 
@@ -123,12 +137,16 @@ impl Node {
             contents: [0; NODE_SIZE],
         };
 
-        for mut skip in node.skip_entries_mut() {
+        for mut skip in node.skip_entries_mut()[1..].iter_mut() {
             // The entries are uninitialized memory.
             unsafe { ptr::write(skip, SkipEntry::new()); }
         }
 
         node
+    }
+
+    fn new() -> Node {
+        Self::new_with_height(random_height())
     }
 
     fn to_str(&self) -> &str {
