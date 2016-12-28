@@ -28,13 +28,14 @@ pub trait Rope {
 
 // Must be <= UINT16_MAX. Benchmarking says this is pretty close to optimal
 // (tested on a mac using clang 4.0 and x86_64).
-const NODE_SIZE: usize = 136;
+//const NODE_SIZE: usize = 136;
 
 // The likelyhood (%) a node will have height (n+1) instead of n
 const BIAS: u32 = 25;
 
 // The rope will become less efficient after the string is 2 ^ ROPE_MAX_HEIGHT nodes.
-//const ROPE_MAX_HEIGHT: usize = 15;
+const MAX_HEIGHT: usize = 13;
+const MAX_HEIGHT_U8: u8 = MAX_HEIGHT as u8;
 
 #[derive(Clone)]
 #[derive(Copy)]
@@ -59,25 +60,18 @@ struct Node {
 	// Number of bytes in contents in use
 	num_bytes: u8,
 
-    // This is essentially a hand-spun union type. We have as many bytes as height *
-    // sizeof(SkipEntry) here, then as many characters afterwards as the struct will fit.
-    skips: [SkipEntry; 1],
-
-	contents: [u8; NODE_SIZE],
+    // This is essentially a hand-spun union type. Any characters not used by height skips will be
+    // filled with characters. (The height is 2.)
+    skips: [SkipEntry; MAX_HEIGHT],
 }
 
-fn max_height() -> u8 {
-    (NODE_SIZE / mem::size_of::<SkipEntry>()) as u8 + 1
-}
-
-fn random_height() -> u8{
+fn random_height() -> u8 {
     use rand::Rng;
 
-    let max = max_height();
     let mut rng = rand::thread_rng();
 
     let mut h = 1;
-    while h < max && rng.gen::<bool>() { h+=1; }
+    while h < MAX_HEIGHT_U8 && rng.gen::<bool>() { h+=1; }
     h
 }
 
@@ -101,45 +95,48 @@ impl SkipEntry {
 
 impl Node {
     fn skip_entries_mut(&mut self) -> &mut [SkipEntry] {
-        unsafe {
-            // This is a weird way to cast because &mut [T;y] as *mut T doesn't work (?)
-            std::slice::from_raw_parts_mut(&mut self.skips[0], self.height as usize)
-        }
+        &mut self.skips[..self.height as usize]
     }
 
     fn skip_entries(&self) -> &[SkipEntry] {
-        unsafe {
-            std::slice::from_raw_parts(&self.skips as *const SkipEntry, self.height as usize)
-        }
+        &self.skips[..self.height as usize]
     }
 
     fn capacity(&self) -> usize {
-        NODE_SIZE - (self.height as usize - 1) * mem::size_of::<SkipEntry>()
+        (MAX_HEIGHT - self.height as usize) * mem::size_of::<SkipEntry>()
     }
 
     fn content(&self) -> &[u8] {
         unsafe {
-            // TODO: Could rewrite this safely just using the size of SkipEntry as an offset to
-            // make a slice the normal way.
             let start = (&self.skips as *const SkipEntry).offset(self.height as isize) as *const u8;
             std::slice::from_raw_parts(start, self.capacity())
         }
     }
 
+    fn content_mut(&mut self) -> &mut [u8] {
+        unsafe {
+            let start = (&mut self.skips[0] as *mut SkipEntry).offset(self.height as isize) as *mut u8;
+            std::slice::from_raw_parts_mut(start, self.capacity())
+        }
+    }
+
     fn new_with_height(height: u8) -> Node {
         //println!("height {} {}", height, max_height());
-        assert!(height >= 1 && height <= max_height());
+        assert!(height >= 1 && height <= MAX_HEIGHT_U8);
 
         let mut node = Node {
             height: height,
             num_bytes: 0,
-            skips: [SkipEntry::new()],
-            contents: [0; NODE_SIZE],
+            skips: unsafe { mem::uninitialized() },
         };
 
-        for mut skip in node.skip_entries_mut()[1..].iter_mut() {
+        for mut skip in node.skip_entries_mut() {
             // The entries are uninitialized memory.
             unsafe { ptr::write(skip, SkipEntry::new()); }
+        }
+
+        for mut byte in node.content_mut() {
+            *byte = 0;
         }
 
         node
@@ -160,18 +157,23 @@ impl Node {
     }
 }
 
+struct RopeIter {
+    skips: [SkipEntry; MAX_HEIGHT],
+}
+
 impl JumpRope {
     pub fn new() -> Self {
         JumpRope {
             num_chars: 0,
             num_bytes: 0,
-            skips: Node::new_with_height(max_height()),
+            skips: Node::new_with_height(MAX_HEIGHT_U8),
         }
     }
 
     fn head(&self) -> Option<&Node> {
         self.skips.next()
     }
+
 }
 
 impl Rope for JumpRope {
