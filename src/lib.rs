@@ -46,8 +46,7 @@ struct SkipEntry {
     node: *mut Node,
 }
 
-// We can rewrite to this in nightly.
-//const FOO: u8 = (NODE_SIZE / mem::size_of::<SkipEntry>()) as u8;
+fn max_bytes_per_node() -> usize { MAX_HEIGHT * mem::size_of::<SkipEntry>() }
 
 // The node structure is designed in a very fancy way which would be more at home in C or something
 // like that. The basic idea is that the node structure is fixed size in memory, but the proportion
@@ -82,7 +81,8 @@ pub struct JumpRope {
 	// The total number of bytes which the characters in the rope take up
 	num_bytes: usize,
 
-    // This node won't have any actual data in it - its just at max height.
+    // This node won't have any actual data in it, and its height is set to the max height of the
+    // rope.
     skips: Node,
 }
 
@@ -135,9 +135,10 @@ impl Node {
             unsafe { ptr::write(skip, SkipEntry::new()); }
         }
 
+        /*
         for mut byte in node.content_mut() {
             *byte = 0;
-        }
+        }*/
 
         node
     }
@@ -161,19 +162,80 @@ struct RopeIter {
     skips: [SkipEntry; MAX_HEIGHT],
 }
 
+impl RopeIter {
+    fn update_offsets(&mut self, height: usize, by: isize) {
+        for i in 0..height {
+            unsafe {
+                // `as usize` here is weird and gross. I guess thats what the C equivalent does.
+                // Because of wrapping its still correct...
+                (*self.skips[i].node).skips[i].num_chars += by as usize;
+            }
+        }
+    }
+}
+
 impl JumpRope {
     pub fn new() -> Self {
         JumpRope {
             num_chars: 0,
             num_bytes: 0,
-            skips: Node::new_with_height(MAX_HEIGHT_U8),
+            skips: Node::new_with_height(1),
         }
     }
 
     fn head(&self) -> Option<&Node> {
         self.skips.next()
     }
+    
+    // Internal function for navigating to a particular character offset in the rope.  The function
+    // returns the list of nodes which point past the position, as well as offsets of how far into
+    // their character lists the specified characters are.
+    fn iter_at_char(&self, char_pos: usize) -> RopeIter {
+        unsafe {
+            assert!(char_pos <= self.num_chars);
 
+            let mut e: *const Node = &self.skips;
+            let mut height = (self.skips.height - 1) as usize;
+            
+            let mut offset = char_pos; // How many more chars to skip
+
+            let mut iter = RopeIter { skips: [SkipEntry::new(); MAX_HEIGHT] };
+
+            loop {
+                let ref en = *e;
+                let skip = en.skips[height].num_chars;
+                if offset > skip {
+                    // Go right.
+                    assert!(e == &self.skips || en.num_bytes > 0);
+                    offset -= skip;
+                    e = en.skips[height].node;
+                    assert!(!e.is_null()); // Unexpectedly reached the end
+                } else {
+                    // Record this and go down.
+                    iter.skips[height] = SkipEntry {
+                        num_chars: offset,
+                        node: e as *mut Node, // This is pretty gross
+                    };
+
+                    if height == 0 {
+                        break;
+                    } else {
+                        height -= 1;
+                    }
+                }
+            }
+
+            assert!(offset <= max_bytes_per_node());
+            return iter;
+        }
+    }
+
+    // Internal fn to create a new node at the specified iterator filled with the specified
+    // content.
+    fn insert_node_at(&mut self, iter: &mut RopeIter, contents: &str, num_chars: usize) {
+        
+
+    }
 }
 
 impl Rope for JumpRope {
