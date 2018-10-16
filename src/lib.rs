@@ -6,8 +6,8 @@ use std::alloc::{alloc, dealloc, Layout};
 
 #[derive(Debug)]
 pub enum RopeError {
-	PositionOutOfBounds,
-	InvalidCodepoint,
+    PositionOutOfBounds,
+    InvalidCodepoint,
 }
 
 pub trait Rope {
@@ -18,10 +18,10 @@ pub trait Rope {
 
     // fn slice(&self, pos: usize, len: usize) -> Result<String, RopeError>;
 
-	fn to_string(&self) -> String;
+    fn to_string(&self) -> String;
 
-	fn len(&self) -> usize; // in bytes
-	fn char_len(&self) -> usize; // in unicode values
+    fn len(&self) -> usize; // in bytes
+    fn char_len(&self) -> usize; // in unicode values
 
     fn check(&self);
     fn print(&self);
@@ -42,8 +42,8 @@ const MAX_HEIGHT_U8: u8 = MAX_HEIGHT as u8;
 
 #[derive(Copy, Clone, Debug)]
 struct SkipEntry {
-	// The number of *characters* between the start of the current node and the
-	// start of the next node.
+    // The number of *characters* between the start of the current node and the
+    // start of the next node.
     node: *mut Node,
     skip_chars: usize,
 }
@@ -58,8 +58,8 @@ struct Node {
     // The first num_bytes of this store a valid utf8 string.
     str: [u8; NODE_STR_SIZE],
 
-	// Number of bytes in str in use
-	num_bytes: u8,
+    // Number of bytes in str in use
+    num_bytes: u8,
 
     // Height of nexts array.
     height: u8,
@@ -92,10 +92,10 @@ fn random_height() -> u8 {
 #[repr(C)]
 pub struct JumpRope {
     // The total number of characters in the rope
-	// num_chars: usize,
+    // num_chars: usize,
 
-	// The total number of bytes which the characters in the rope take up
-	num_bytes: usize,
+    // The total number of bytes which the characters in the rope take up
+    num_bytes: usize,
 
     // The first node is inline. The height is the max height we've ever used in
     // the rope.
@@ -570,26 +570,26 @@ impl Rope for JumpRope {
     //     JumpRope::new()
     // }
 
-	fn insert(&mut self, mut pos: usize, contents: &str) -> Result<(), RopeError> {
+    fn insert(&mut self, mut pos: usize, contents: &str) -> Result<(), RopeError> {
         if contents.len() == 0 { return Ok(()); }
         
         pos = std::cmp::min(pos, self.num_chars());
         let mut cursor = self.iter_at_char(pos);
         unsafe { self.insert_at_iter(&mut cursor, contents) }
-	}
+    }
 
     fn del(&mut self, pos: usize, length: usize) -> Result<(), RopeError> {
-		if pos >= self.num_chars() { return Ok(()); }
+        if pos >= self.num_chars() { return Ok(()); }
         let length = std::cmp::min(length, self.num_chars() - pos);
         let mut cursor = self.iter_at_char(pos);
         unsafe { self.del_at_iter(&mut cursor, length); }
         Ok(())
-	}
+    }
 
     // fn slice(&self, pos: usize, len: usize) -> Result<String, RopeError> {
-	//    	unimplemented!();
-   	// }
-	fn to_string(&self) -> String {
+    //        unimplemented!();
+       // }
+    fn to_string(&self) -> String {
         let mut content = String::with_capacity(self.num_bytes);
 
         for node in self.iter() {
@@ -597,9 +597,9 @@ impl Rope for JumpRope {
         }
 
         content
-	}
-	fn len(&self) -> usize { self.num_bytes }
-	fn char_len(&self) -> usize { self.num_chars() }
+    }
+    fn len(&self) -> usize { self.num_bytes }
+    fn char_len(&self) -> usize { self.num_chars() }
 
 
     fn check(&self) {
