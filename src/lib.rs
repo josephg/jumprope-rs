@@ -36,7 +36,7 @@ pub trait Rope {
 const BIAS: u8 = 64;
 
 // The rope will become less efficient after the string is 2 ^ ROPE_MAX_HEIGHT nodes.
-const NODE_STR_SIZE: usize = 4;//62;
+const NODE_STR_SIZE: usize = 62;
 const MAX_HEIGHT: usize = 20;//NODE_STR_SIZE / mem::size_of::<SkipEntry>();
 const MAX_HEIGHT_U8: u8 = MAX_HEIGHT as u8;
 
