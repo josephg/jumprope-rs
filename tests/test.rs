@@ -12,8 +12,10 @@ mod test {
     ];
 
     fn check<T: Rope>(r: &T, expected: &str) {
-        assert_eq!(r.len(), expected.len());
+        r.check();
+        r.print();
         assert_eq!(r.to_string(), expected);
+        assert_eq!(r.len(), expected.len());
         assert_eq!(r.char_len(), expected.chars().count());
     }
 
@@ -22,7 +24,7 @@ mod test {
         let mut r = JumpRope::new();
         check(&r, "");
 
-        r.insert(0, "");
+        r.insert(0, "").unwrap();
         check(&r, "");
     }
 
@@ -43,5 +45,46 @@ mod test {
         check(&r, "BBBAADDDACCC");
     }
 
+    #[test]
+    fn new_string_has_content() {
+        let r = JumpRope::new_from_str("hi there");
+        check(&r, "hi there");
 
+        let mut r = JumpRope::new_from_str("κόσμε");
+        check(&r, "κόσμε");
+        r.insert(2, "𝕐𝕆😘").unwrap();
+        check(&r, "κό𝕐𝕆😘σμε");
+    }
+
+    #[test]
+    fn del_at_location() {
+        let mut r = JumpRope::new_from_str("012345678");
+
+        r.del(8, 1).unwrap();
+        check(&r, "01234567");
+        
+        r.del(0, 1).unwrap();
+        check(&r, "1234567");
+        
+        r.del(5, 1).unwrap();
+        check(&r, "123457");
+        
+        r.del(5, 1).unwrap();
+        check(&r, "12345");
+        
+        r.del(0, 5).unwrap();
+        check(&r, "");
+    }
+
+    #[test]
+    fn del_past_end_of_string() {
+        let mut r = JumpRope::new();
+
+        r.del(0, 100).unwrap();
+        check(&r, "");
+
+        r.insert(0, "hi there").unwrap();
+        r.del(3, 10).unwrap();
+        check(&r, "hi ");
+    }
 }
