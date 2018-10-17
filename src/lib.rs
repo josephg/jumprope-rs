@@ -326,6 +326,7 @@ impl JumpRope {
     // Internal fn to create a new node at the specified iterator filled with the specified
     // content.
     unsafe fn insert_node_at(&mut self, iter: &mut RopeCursor, contents: &str, num_chars: usize) {
+        // println!("Insert_node_at {} len {}", contents.len(), self.num_bytes);
         // assert!(contents.len() < NODE_STR_SIZE);
         debug_assert_eq!(contents.chars().count(), num_chars);
 
@@ -417,7 +418,7 @@ impl JumpRope {
         }
 
         if insert_here {
-            println!("insert_here {}", contents);
+            // println!("insert_here {}", contents);
             // First move the current bytes later on in the string.
             // let c = (*e).content_mut();
             let c = &mut (*e).str;
@@ -474,7 +475,7 @@ impl JumpRope {
             // let mut str_offset: usize = 0;
             let mut remainder = contents;
             while !remainder.is_empty() {
-                println!(". {}", remainder);
+                // println!(". {}", remainder);
                 // Find the first index after STR_SIZE bytes
                 let mut byte_pos = 0;
                 let mut char_pos = 0;
@@ -609,7 +610,8 @@ impl Rope for JumpRope {
             assert!(self.head.height < MAX_HEIGHT_U8 + 1);
 
             let skip_over = &self.nexts[self.head.height as usize - 1];
-            assert!(skip_over.skip_chars >= self.head.num_bytes as usize);
+            println!("Skip over skip chars {}, num bytes {}", skip_over.skip_chars, self.num_bytes);
+            assert!(skip_over.skip_chars <= self.num_bytes as usize);
             assert!(skip_over.node.is_null());
 
             // The offsets store the total distance travelled since the start.

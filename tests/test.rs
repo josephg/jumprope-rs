@@ -3,13 +3,28 @@ mod test {
     extern crate jumprope;
     use self::jumprope::{Rope, JumpRope};
 
-    static UCHARS: [char; 23] = [
+    extern crate rand;
+    use self::rand::Rng;
+    use self::rand::RngCore;
+    
+    const UCHARS: [char; 23] = [
       'a', 'b', 'c', '1', '2', '3', ' ', '\n', // ASCII
       '©', '¥', '½', // The Latin-1 suppliment (U+80 - U+ff)
       'Ύ', 'Δ', 'δ', 'Ϡ', // Greek (U+0370 - U+03FF)
       '←', '↯', '↻', '⇈', // Arrows (U+2190 – U+21FF)
       '𐆐', '𐆔', '𐆘', '𐆚', // Ancient roman symbols (U+10190 – U+101CF)
     ];
+
+    const CHARS: &[u8; 83] = b" ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()[]{}<>?,./";
+
+    fn random_ascii_string(len: usize) -> String {
+        let mut s = String::new();
+        let mut rng = rand::thread_rng();
+        for _ in 0..len {
+            s.push(CHARS[rng.gen::<usize>() % CHARS.len()] as char);
+        }
+        s
+    }
 
     fn check<T: Rope>(r: &T, expected: &str) {
         r.check();
@@ -86,5 +101,19 @@ mod test {
         r.insert(0, "hi there").unwrap();
         r.del(3, 10).unwrap();
         check(&r, "hi ");
+    }
+
+    #[test]
+    fn really_long_ascii_string() {
+        let len = 2000;
+        let s = random_ascii_string(len);
+
+        let mut r = JumpRope::new_from_str(s.as_str());
+        check(&r, s.as_str());
+
+        // Delete everything but the first and last characters
+        r.del(1, len - 2).unwrap();
+        let expect = format!("{}{}", s.as_bytes()[0] as char, s.as_bytes()[len-1] as char);
+        check(&r, expect.as_str());
     }
 }
