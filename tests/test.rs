@@ -1,3 +1,6 @@
+// These tests are also adapted from the C code tests here:
+// https://github.com/josephg/librope/blob/master/test/tests.c
+
 #[cfg(test)]
 mod test {
     extern crate jumprope;
@@ -21,17 +24,18 @@ mod test {
         let mut s = String::new();
         let mut rng = rand::thread_rng();
         for _ in 0..len {
-            s.push(CHARS[rng.gen::<usize>() % CHARS.len()] as char);
+            s.push(*rng.choose(CHARS).unwrap() as char);
         }
         s
     }
 
-    fn check<T: Rope>(r: &T, expected: &str) {
+    fn check<'a, T: Rope<'a>>(r: &T, expected: &'a str) {
         r.check();
         r.print();
         assert_eq!(r.to_string(), expected);
         assert_eq!(r.len(), expected.len());
         assert_eq!(r.char_len(), expected.chars().count());
+        assert!(*r == T::from(expected), "Rope comparison fails");
     }
 
     #[test]

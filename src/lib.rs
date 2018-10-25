@@ -3,6 +3,7 @@ extern crate rand;
 use std::{mem, ptr, str};
 use std::result::Result::{Ok, Err};
 use std::alloc::{alloc, dealloc, Layout};
+use std::cmp::min;
 
 #[derive(Debug)]
 pub enum RopeError {
@@ -10,8 +11,9 @@ pub enum RopeError {
     InvalidCodepoint,
 }
 
-pub trait Rope {
-    // fn new() -> Self;
+// I'm really sad this needs the lifetime specifier
+pub trait Rope<'a>: Eq + From<&'a str> {
+    fn new() -> Self;
 
     fn insert(&mut self, pos: usize, contents: &str) -> Result<(), RopeError>;
     fn del(&mut self, pos: usize, len: usize) -> Result<(), RopeError>;
@@ -566,10 +568,78 @@ impl JumpRope {
     }
 }
 
-impl Rope for JumpRope {
-    // fn new() -> Self {
-    //     JumpRope::new()
-    // }
+impl Drop for JumpRope {
+    fn drop(&mut self) {
+        let mut node = self.head.first_next().node;
+        unsafe {
+            while !node.is_null() {
+                let next = (*node).first_next().node;
+                Node::free(node);
+                node = next;
+            }
+        }
+    }
+}
+
+impl<'a> From<&'a str> for JumpRope {
+    fn from(s: &str) -> JumpRope {
+        JumpRope::new_from_str(s)
+    }
+}
+
+impl PartialEq for JumpRope {
+    // This is quite complicated. It would be cleaner to just write a bytes
+    // iterator, then iterate over the bytes of both strings comparing along the
+    // way.
+    // However, this should be faster because it can memcmp().
+    fn eq(&self, other: &JumpRope) -> bool {
+        if self.num_bytes != other.num_bytes
+                || self.num_chars() != other.num_chars() {
+            return false
+        }
+
+        let mut other_iter = other.iter().map(|n| { n.as_str() });
+
+        let mut os = other_iter.next();
+        let mut opos: usize = 0; // Byte offset in os.
+        for n in self.iter() {
+            let s = n.as_str();
+            let mut pos: usize = 0; // Current byte offset in s
+            debug_assert_eq!(s.len(), n.num_bytes as usize);
+
+            // Walk s.len() bytes through the other rope
+            while pos < n.num_bytes as usize {
+                if let Some(oss) = os {
+                    let amt = min(s.len() - pos, oss.len() - opos);
+                    // println!("iter slen {} pos {} osslen {} amt {}", s.len(), pos, oss.len(), amt);
+
+                    if &s[pos..pos+amt] != &oss[opos..opos+amt] {
+                        return false
+                    }
+
+                    pos += amt;
+                    opos += amt;
+                    debug_assert!(opos <= oss.len());
+
+                    if opos == oss.len() {
+                        os = other_iter.next();
+                        opos = 0;
+                    }
+                } else {
+                    panic!("Internal string length does not match");
+                }
+            }
+        }
+
+        true
+    }
+}
+impl Eq for JumpRope {}
+
+impl<'a> Rope<'a> for JumpRope {
+    fn new() -> Self {
+        JumpRope::new()
+    }
 
     fn insert(&mut self, mut pos: usize, contents: &str) -> Result<(), RopeError> {
         if contents.len() == 0 { return Ok(()); }
@@ -670,19 +740,6 @@ impl Rope for JumpRope {
                 print!(" |{} ", s.skip_chars);
             }
             println!("      : {:?}", node.as_str());
-        }
-    }
-}
-
-impl Drop for JumpRope {
-    fn drop(&mut self) {
-        let mut node = self.head.first_next().node;
-        unsafe {
-            while !node.is_null() {
-                let next = (*node).first_next().node;
-                Node::free(node);
-                node = next;
-            }
         }
     }
 }
