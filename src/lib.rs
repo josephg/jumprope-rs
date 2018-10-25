@@ -1,35 +1,23 @@
+// This is an implementation of a Rope (fancy string) based on a skip list. This
+// implementation is a rust port of librope:
+// https://github.com/josephg/librope
+// It does not support wide characters.
+
+// Unlike other rust rope implementations, this implementation should be very
+// fast; but it manages that through heavy use of unsafe pointers and C-style
+// dynamic arrays.
+
 extern crate rand;
+
+mod rope;
+pub use rope::*;
+
+mod edittablestr;
 
 use std::{mem, ptr, str};
 use std::result::Result::{Ok, Err};
 use std::alloc::{alloc, dealloc, Layout};
 use std::cmp::min;
-
-#[derive(Debug)]
-pub enum RopeError {
-    PositionOutOfBounds,
-    InvalidCodepoint,
-}
-
-// I'm really sad this needs the lifetime specifier
-pub trait Rope {
-    fn new() -> Self;
-
-    fn insert(&mut self, pos: usize, contents: &str) -> Result<(), RopeError>;
-    fn del(&mut self, pos: usize, len: usize) -> Result<(), RopeError>;
-
-    // fn slice(&self, pos: usize, len: usize) -> Result<String, RopeError>;
-
-    fn to_string(&self) -> String;
-
-    fn len(&self) -> usize; // in bytes
-    fn char_len(&self) -> usize; // in unicode values
-
-    // This is really weird.
-    fn check(&self);
-    fn print(&self);
-}
-
 
 // Must be <= UINT16_MAX. Benchmarking says this is pretty close to optimal
 // (tested on a mac using clang 4.0 and x86_64).
@@ -267,7 +255,7 @@ impl JumpRope {
     // TODO: Add From trait.
     pub fn new_from_str(s: &str) -> Self {
         let mut rope = Self::new();
-        rope.insert(0, s).unwrap();
+        rope.insert_at(0, s).unwrap();
         rope
     }
 
@@ -635,6 +623,18 @@ impl PartialEq for JumpRope {
 }
 impl Eq for JumpRope {}
 
+impl<'a> Into<String> for &'a JumpRope {
+    fn into(self) -> String {
+        let mut content = String::with_capacity(self.num_bytes);
+
+        for node in self.iter() {
+            content.push_str(node.as_str());
+        }
+
+        content
+    }
+}
+
 impl Clone for JumpRope {
     fn clone(&self) -> Self {
         let mut r = JumpRope::new();
@@ -651,7 +651,6 @@ impl Clone for JumpRope {
             for i in 0..self.head.height as usize {
                 head_nexts[i].skip_chars = self.nexts[i].skip_chars;
             }
-            println!("head_nexts {:?} {}", head_nexts, self.head.height);
         }
 
         let mut nodes = [&mut r.head as *mut Node; MAX_HEIGHT];
@@ -687,7 +686,7 @@ impl Rope for JumpRope {
         JumpRope::new()
     }
 
-    fn insert(&mut self, mut pos: usize, contents: &str) -> Result<(), RopeError> {
+    fn insert_at(&mut self, mut pos: usize, contents: &str) -> Result<(), RopeError> {
         if contents.len() == 0 { return Ok(()); }
         
         pos = std::cmp::min(pos, self.num_chars());
@@ -695,7 +694,7 @@ impl Rope for JumpRope {
         unsafe { self.insert_at_iter(&mut cursor, contents) }
     }
 
-    fn del(&mut self, pos: usize, length: usize) -> Result<(), RopeError> {
+    fn del_at(&mut self, pos: usize, length: usize) -> Result<(), RopeError> {
         if pos >= self.num_chars() { return Ok(()); }
         let length = std::cmp::min(length, self.num_chars() - pos);
         let mut cursor = self.iter_at_char(pos);
@@ -706,18 +705,10 @@ impl Rope for JumpRope {
     // fn slice(&self, pos: usize, len: usize) -> Result<String, RopeError> {
     //        unimplemented!();
        // }
-    fn to_string(&self) -> String {
-        let mut content = String::with_capacity(self.num_bytes);
 
-        for node in self.iter() {
-            content.push_str(node.as_str());
-        }
-
-        content
-    }
     fn len(&self) -> usize { self.num_bytes }
     fn char_len(&self) -> usize { self.num_chars() }
-
+    fn to_string(&self) -> String { self.into() }
 
     fn check(&self) {
         // #[cfg(test)]
@@ -726,7 +717,7 @@ impl Rope for JumpRope {
             assert!(self.head.height < MAX_HEIGHT_U8 + 1);
 
             let skip_over = &self.nexts[self.head.height as usize - 1];
-            println!("Skip over skip chars {}, num bytes {}", skip_over.skip_chars, self.num_bytes);
+            // println!("Skip over skip chars {}, num bytes {}", skip_over.skip_chars, self.num_bytes);
             assert!(skip_over.skip_chars <= self.num_bytes as usize);
             assert!(skip_over.node.is_null());
 
@@ -741,7 +732,7 @@ impl Rope for JumpRope {
             let mut num_chars = 0;
 
             for n in self.iter() {
-                println!("visiting {:?}", n.as_str());
+                // println!("visiting {:?}", n.as_str());
                 assert!((n as *const Node == &self.head as *const Node) || n.num_bytes > 0);
                 assert!(n.height <= MAX_HEIGHT_U8);
 
@@ -750,7 +741,7 @@ impl Rope for JumpRope {
                     assert_eq!(entry.node as *const Node, n as *const Node);
                     assert_eq!(entry.skip_chars, num_chars);
 
-                    println!("replacing entry {:?} with {:?}", entry, n.nexts()[i].node);
+                    // println!("replacing entry {:?} with {:?}", entry, n.nexts()[i].node);
                     entry.node = n.nexts()[i].node;
                     entry.skip_chars += n.nexts()[i].skip_chars;
                 }
@@ -760,12 +751,12 @@ impl Rope for JumpRope {
             }
 
             for entry in iter[0..self.head.height as usize].iter() {
-                println!("{:?}", entry);
+                // println!("{:?}", entry);
                 assert!(entry.node.is_null());
                 assert_eq!(entry.skip_chars, num_chars);
             }
             
-            println!("self bytes: {}, count bytes {}", self.num_bytes, num_bytes);
+            // println!("self bytes: {}, count bytes {}", self.num_bytes, num_bytes);
             assert_eq!(self.num_bytes, num_bytes);
             assert_eq!(self.num_chars(), num_chars);
         }
