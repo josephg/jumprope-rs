@@ -29,13 +29,18 @@ mod test {
         s
     }
 
-    fn check<'a, T: Rope<'a>>(r: &T, expected: &'a str) {
+    fn check<'a, T: Rope + Eq + From<&'a str> + Clone>(r: &T, expected: &'a str) {
         r.check();
         r.print();
         assert_eq!(r.to_string(), expected);
         assert_eq!(r.len(), expected.len());
         assert_eq!(r.char_len(), expected.chars().count());
         assert!(*r == T::from(expected), "Rope comparison fails");
+
+        let clone = r.clone();
+        clone.print();
+        clone.check();
+        assert!(*r == clone, "Rope does not equal its clone");
     }
 
     #[test]

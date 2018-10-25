@@ -12,7 +12,7 @@ pub enum RopeError {
 }
 
 // I'm really sad this needs the lifetime specifier
-pub trait Rope<'a>: Eq + From<&'a str> {
+pub trait Rope {
     fn new() -> Self;
 
     fn insert(&mut self, pos: usize, contents: &str) -> Result<(), RopeError>;
@@ -25,6 +25,7 @@ pub trait Rope<'a>: Eq + From<&'a str> {
     fn len(&self) -> usize; // in bytes
     fn char_len(&self) -> usize; // in unicode values
 
+    // This is really weird.
     fn check(&self);
     fn print(&self);
 }
@@ -75,7 +76,8 @@ struct Node {
     nexts: [SkipEntry; 0],
 }
 
-// Make sure nexts uses correct alignment.
+// Make sure nexts uses correct alignment. This should be guaranteed by repr(C)
+// This test will fail if this ever stops being true.
 #[test]
 fn test_align() {
     #[repr(C)] struct Check([SkipEntry; 0]);
@@ -119,14 +121,6 @@ impl SkipEntry {
     fn new() -> Self {
         SkipEntry { node: ptr::null_mut(), skip_chars: 0 }
     }
-
-    // unsafe fn next(&self) -> Option<&Node> {
-    //     self.node.as_ref()
-    // }
-
-    // unsafe fn next_mut(&self) -> Option<&mut Node> {
-    //     self.node.as_mut()
-    // }
 }
 
 impl Node {
@@ -592,6 +586,11 @@ impl PartialEq for JumpRope {
     // iterator, then iterate over the bytes of both strings comparing along the
     // way.
     // However, this should be faster because it can memcmp().
+
+    // Another way to implement this would be to rewrite it as a comparison with
+    // an iterator over &str. Then the rope vs rope comparison would be trivial,
+    // but also we could add comparison functions with a single &str and stuff
+    // very easily.
     fn eq(&self, other: &JumpRope) -> bool {
         if self.num_bytes != other.num_bytes
                 || self.num_chars() != other.num_chars() {
@@ -636,7 +635,54 @@ impl PartialEq for JumpRope {
 }
 impl Eq for JumpRope {}
 
-impl<'a> Rope<'a> for JumpRope {
+impl Clone for JumpRope {
+    fn clone(&self) -> Self {
+        let mut r = JumpRope::new();
+        r.num_bytes = self.num_bytes;
+        let head_str = self.head.as_str();
+        r.head.str[..head_str.len()].copy_from_slice(head_str.as_bytes());
+        r.head.num_bytes = self.head.num_bytes;
+        r.head.height = self.head.height;
+        
+        {
+            // I could just edit the overflow memory directly, but this is safer
+            // because of aliasing rules.
+            let head_nexts = r.head.nexts_mut();
+            for i in 0..self.head.height as usize {
+                head_nexts[i].skip_chars = self.nexts[i].skip_chars;
+            }
+            println!("head_nexts {:?} {}", head_nexts, self.head.height);
+        }
+
+        let mut nodes = [&mut r.head as *mut Node; MAX_HEIGHT];
+
+        // The first node the iterator will return is the head. Ignore it.
+        let mut iter = self.iter();
+        iter.next();
+        for other in iter {
+            // This also sets height.
+            let height = other.height;
+            let node = Node::alloc_with_height(height);
+            unsafe {
+                (*node).num_bytes = other.num_bytes;
+                let len = other.num_bytes as usize;
+                (*node).str[..len].copy_from_slice(&other.str[..len]);
+
+                let other_nexts = other.nexts();
+                let nexts = (*node).nexts_mut();
+                for i in 0..height as usize {
+                    nexts[i].skip_chars = other_nexts[i].skip_chars;
+                    (*nodes[i]).nexts_mut()[i].node = node;
+                    nodes[i] = node;
+                }
+            }
+        }
+
+        r
+    }
+}
+
+impl Rope for JumpRope {
     fn new() -> Self {
         JumpRope::new()
     }
