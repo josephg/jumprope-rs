@@ -71,7 +71,13 @@ impl Rope for XiRope {
     }
     
     // fn len(&self) -> usize { self.len() } // in bytes
-    fn char_len(&self) -> usize { unimplemented!() } // in unicode values
+    fn char_len(&self) -> usize {
+        let mut len = 0;
+        for s in self.iter_chunks() {
+            len += s.chars().count();
+        }
+        len
+    } // in unicode values
 }
 
 impl Rope for RopeyRope {
@@ -210,10 +216,16 @@ fn bench_all(c: &mut Criterion) {
     c.bench("ropes", benchmark);
 }
 
-// fn bench_algo_compare(c: &mut Criterion) {
-//     c.bench_functions("compare"
-// }
+fn bench_simple(c: &mut Criterion) {
+    c.bench_functions("simple", vec![
+        Fun::new("ropey", bench_type::<RopeyRope>),
+        // Fun::new("anrope", bench_type::<AnRope>),
+        Fun::new("xirope", bench_type::<XiRope>),
+        Fun::new("jumprope", bench_type::<JumpRope>),
+        Fun::new("jumprope_c", bench_type::<CRope>),
+    ], 1000000);
+}
 
-// criterion_group!(benches, bench_all, bench_algo_compare);
-criterion_group!(benches, bench_all);
+criterion_group!(benches, bench_all, bench_simple);
+// criterion_group!(benches, bench_all);
 criterion_main!(benches);
