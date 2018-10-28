@@ -1,16 +1,12 @@
 # Rope in Rust
 
-This is a straight rust port of my [C rope library](https://github.com/josephg/librope). Its mostly complete - although its missing:
-
-- The C library's fuzzer tests
-- Benchmarks
-- Wide character conversion
-
-This library is designed for speed. It is full of `unsafe` blocks and pointer arithmetic. I don't recommend using it until testing is complete. But, while I haven't benchmarked it yet, I'm hoping it'll beat the pants off other rust rope libraries. When thats done I'll probably throw it up in crates.io.
+This is a straight rust port of my [C rope library](https://github.com/josephg/librope). Its mostly complete - although its missing wide character conversion
 
 This library was largely written as a learning exercise, to compare high performance rust vs the equivalent C code. Interestingly, while application code written in rust seems to end up smaller than its C equivalent, this library has ended up about the same size. My hot take is that rust's expressive advantages don't seem to amount to much when implementing deep data structures.
 
 That said, I suspect there's a way to use rust's generics to add wide character support, newline iteration, and stuff like that in a templated way. That would be a huge win over the C version, which is littered with #ifdefs.
+
+I've uploaded [benchmarks here](https://josephg.com/ropereport/report/). Given [ropey](https://crates.io/crates/ropey) is both faster and more feature rich than this library, I'm not going to upload it to cargo or continue developing. Well played [@cessen](https://github.com/cessen).
 
 
 # LICENSE
