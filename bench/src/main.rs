@@ -150,16 +150,57 @@ fn foo() {
     }
 }
 
-fn bench_type<R: Rope + From<String>>(b: &mut Bencher, target_length: &usize) {
-    let target_length = *target_length;
-    let mut rng = prng::XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
-
+fn gen_strings<R: Rng>(rng: &mut R) -> Vec<String> {
     // I wish there was a better syntax for just making an array here.
     let mut strings = Vec::<String>::new();
     for _ in 0..100 {
         let len = rng.gen_range(1, 3);
-        strings.push(random_ascii_string(&mut rng, len));
+        strings.push(random_ascii_string(rng, len));
     }
+
+    strings
+}
+
+fn ins_append<R: Rope>(b: &mut Bencher) {
+    let mut rng = prng::XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
+    let strings = gen_strings(&mut rng);
+
+    let mut r = R::new();
+    let mut len = 0;
+    b.iter(|| {
+        // let pos = rng.gen_range(0, len+1);
+        let text = &strings[rng.gen_range(0, strings.len())];
+        r.insert_at(len, text.as_str());
+        len += text.chars().count();
+    });
+
+    black_box(r.char_len());
+}
+
+fn ins_random<R: Rope>(b: &mut Bencher) {
+    let mut rng = prng::XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
+    let strings = gen_strings(&mut rng);
+
+    let mut r = R::new();
+    // Len isn't needed, but its here to allow direct comparison with ins_append.
+    let mut len = 0;
+    b.iter(|| {
+        let pos = rng.gen_range(0, len+1);
+        let text = &strings[rng.gen_range(0, strings.len())];
+        r.insert_at(pos, text.as_str());
+        len += text.chars().count();
+    });
+
+    black_box(r.char_len());
+    black_box(len); 
+}
+
+fn stable_ins_del<R: Rope + From<String>>(b: &mut Bencher, target_length: &usize) {
+    let target_length = *target_length;
+    let mut rng = prng::XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
+
+    // I wish there was a better syntax for just making an array here.
+    let strings = gen_strings(&mut rng);
     
     // let target_length = 100000;
     // let mut r = R::new();
@@ -197,7 +238,30 @@ fn bench_type<R: Rope + From<String>>(b: &mut Bencher, target_length: &usize) {
     black_box(r.char_len());
 }
 
-fn bench_all(c: &mut Criterion) {
+fn bench_ins_append(c: &mut Criterion) {
+    let benchmark = Benchmark::new("jumprope", ins_append::<JumpRope>)
+        .with_function("ropey", ins_append::<RopeyRope>)
+        // anrope runs out of stack and crashes in this test.
+        // .with_function("anrope", ins_append::<AnRope>)
+        .with_function("xirope", ins_append::<XiRope>)
+        .with_function("jumprope_c", ins_append::<CRope>)
+        .with_function("raw_string", ins_append::<String>)
+    ;
+    c.bench("ins_append", benchmark);
+}
+
+fn bench_ins_random(c: &mut Criterion) {
+    let benchmark = Benchmark::new("jumprope", ins_random::<JumpRope>)
+        .with_function("jumprope_c", ins_random::<CRope>)
+        .with_function("ropey", ins_random::<RopeyRope>)
+        .with_function("anrope", ins_random::<AnRope>)
+        .with_function("xirope", ins_random::<XiRope>)
+        .with_function("raw_string", ins_random::<String>)
+    ;
+    c.bench("ins_random", benchmark);
+}
+
+fn bench_stable_ins_del(c: &mut Criterion) {
     let params = vec![
         1000,
         10000,
@@ -205,27 +269,27 @@ fn bench_all(c: &mut Criterion) {
         1000000,
         10000000,
     ];
-    let benchmark = ParameterizedBenchmark::new("raw_string", bench_type::<String>, params)
-        .with_function("ropey", bench_type::<RopeyRope>)
-        .with_function("anrope", bench_type::<AnRope>)
-        .with_function("xirope", bench_type::<XiRope>)
-        .with_function("jumprope_c", bench_type::<CRope>)
-        .with_function("jumprope", bench_type::<JumpRope>)
+    let benchmark = ParameterizedBenchmark::new("raw_string", stable_ins_del::<String>, params)
+        .with_function("ropey", stable_ins_del::<RopeyRope>)
+        .with_function("anrope", stable_ins_del::<AnRope>)
+        .with_function("xirope", stable_ins_del::<XiRope>)
+        .with_function("jumprope_c", stable_ins_del::<CRope>)
+        .with_function("jumprope", stable_ins_del::<JumpRope>)
     ;
 
-    c.bench("ropes", benchmark);
+    c.bench("stable_ins_del", benchmark);
 }
 
 fn bench_simple(c: &mut Criterion) {
     c.bench_functions("simple", vec![
-        Fun::new("ropey", bench_type::<RopeyRope>),
-        // Fun::new("anrope", bench_type::<AnRope>),
-        Fun::new("xirope", bench_type::<XiRope>),
-        Fun::new("jumprope", bench_type::<JumpRope>),
-        Fun::new("jumprope_c", bench_type::<CRope>),
+        Fun::new("ropey", stable_ins_del::<RopeyRope>),
+        // Fun::new("anrope", stable_ins_del::<AnRope>),
+        Fun::new("xirope", stable_ins_del::<XiRope>),
+        Fun::new("jumprope", stable_ins_del::<JumpRope>),
+        Fun::new("jumprope_c", stable_ins_del::<CRope>),
     ], 1000000);
 }
 
-criterion_group!(benches, bench_all, bench_simple);
+criterion_group!(benches, bench_ins_append, bench_ins_random, bench_simple, bench_stable_ins_del);
 // criterion_group!(benches, bench_all);
 criterion_main!(benches);
