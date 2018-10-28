@@ -72,19 +72,19 @@ mod tests {
     #[test]
     fn insert_simple() {
         let mut s = "".to_string();
-        s.insert_at(0, "hi").unwrap();
+        s.insert_at(0, "hi");
         assert_eq!(s, "hi");
 
         let mut s = "a".to_string();
-        s.insert_at(0, "hi").unwrap();
+        s.insert_at(0, "hi");
         assert_eq!(s, "hia");
 
         let mut s = "a".to_string();
-        s.insert_at(1, "hi").unwrap();
+        s.insert_at(1, "hi");
         assert_eq!(s, "ahi");
 
         let mut s = "ac".to_string();
-        s.insert_at(1, "b").unwrap();
+        s.insert_at(1, "b");
         assert_eq!(s, "abc");
     }
 
@@ -92,30 +92,30 @@ mod tests {
     fn insert_unicode() {
         // I mean, its all unicode but ....
         let mut s = "𝄞𝄞".to_string();
-        s.insert_at(0, "à").unwrap();
+        s.insert_at(0, "à");
         assert_eq!(s, "à𝄞𝄞");
-        s.insert_at(2, "ë").unwrap();
+        s.insert_at(2, "ë");
         assert_eq!(s, "à𝄞ë𝄞");
-        s.insert_at(4, "ç").unwrap();
+        s.insert_at(4, "ç");
         assert_eq!(s, "à𝄞ë𝄞ç");
-        s.insert_at(6, "𝒲").unwrap();
+        s.insert_at(6, "𝒲");
         assert_eq!(s, "à𝄞ë𝄞ç𝒲");
     }
 
     #[test]
     fn remove_simple() {
         let mut s = "à".to_string();
-        s.del_at(0, 1).unwrap();
+        s.del_at(0, 1);
         assert_eq!(s, "");
-        s.del_at(0, 0).unwrap();
+        s.del_at(0, 0);
         assert_eq!(s, "");
 
         let mut s = "à𝄞ç".to_string();
-        s.del_at(0, 1).unwrap();
+        s.del_at(0, 1);
         assert_eq!(s, "𝄞ç");
-        s.del_at(1, 1).unwrap();
+        s.del_at(1, 1);
         assert_eq!(s, "𝄞");
-        s.del_at(0, 1).unwrap();
+        s.del_at(0, 1);
         assert_eq!(s, "");
     }
 }
