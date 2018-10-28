@@ -554,7 +554,7 @@ static ROPE_RESULT rope_insert_at_iter(rope *r, rope_node *e, rope_iter *iter, c
       size_t new_node_bytes = 0;
       size_t new_node_chars = 0;
 
-      while (str_offset + new_node_bytes < num_inserted_bytes) {
+      while (str_offset + new_node_bytes < (size_t)num_inserted_bytes) {
         size_t cs = codepoint_size(str[str_offset + new_node_bytes]);
         if (cs + new_node_bytes > ROPE_NODE_STR_SIZE) {
           break;
