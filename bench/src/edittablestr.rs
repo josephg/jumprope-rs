@@ -1,5 +1,4 @@
-use rope::*;
-
+use super::Rope;
 use std::ptr;
 
 // pub trait EditableText {
@@ -11,7 +10,7 @@ use std::ptr;
 impl Rope for String {
     fn new() -> Self { String::new() }
     
-    fn insert_at(&mut self, char_pos: usize, contents: &str) -> Result<(), RopeError> {
+    fn insert_at(&mut self, char_pos: usize, contents: &str) {
         // If you try to write past the end of the string for now I'll just write at the end.
         // Panicing might be a better policy.
         let byte_pos = self.char_indices().skip(char_pos).next()
@@ -44,10 +43,8 @@ impl Rope for String {
             );
             //println!("{:?}", self.as_mut_vec());
         }
-
-        Result::Ok(())
     }
-    fn del_at(&mut self, pos: usize, length: usize) -> Result<(), RopeError> {
+    fn del_at(&mut self, pos: usize, length: usize) {
         let byte_range = {
             let mut iter = self.char_indices().map(|(p, _)| p).skip(pos).peekable();
 
@@ -59,16 +56,11 @@ impl Rope for String {
         };
 
         self.drain(byte_range);
-        Result::Ok(())
     }
 
-    fn len(&self) -> usize { self.len() }
+    // fn len(&self) -> usize { self.len() }
     fn char_len(&self) -> usize { self.chars().count() }
     fn to_string(&self) -> String { self.clone() }
-
-    // This is really weird.
-    fn check(&self) {}
-    fn print(&self) { println!("{}", self); }
 }
 
 
@@ -113,17 +105,17 @@ mod tests {
     #[test]
     fn remove_simple() {
         let mut s = "à".to_string();
-        s.del_at(0, 1);
+        s.del_at(0, 1).unwrap();
         assert_eq!(s, "");
-        s.del_at(0, 0);
+        s.del_at(0, 0).unwrap();
         assert_eq!(s, "");
 
         let mut s = "à𝄞ç".to_string();
-        s.del_at(0, 1);
+        s.del_at(0, 1).unwrap();
         assert_eq!(s, "𝄞ç");
-        s.del_at(1, 1);
+        s.del_at(1, 1).unwrap();
         assert_eq!(s, "𝄞");
-        s.del_at(0, 1);
+        s.del_at(0, 1).unwrap();
         assert_eq!(s, "");
     }
 }
