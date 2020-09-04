@@ -24,7 +24,7 @@ mod test {
         let mut s = String::new();
         let mut rng = rand::thread_rng();
         for _ in 0..len {
-            s.push(*rng.choose(&UCHARS).unwrap());
+            s.push(CHARS[rng.gen_range(0, UCHARS.len())] as char);
         }
         s
     }
@@ -36,7 +36,7 @@ mod test {
         let mut s = String::new();
         let mut rng = rand::thread_rng();
         for _ in 0..len {
-            s.push(*rng.choose(CHARS).unwrap() as char);
+            s.push(CHARS[rng.gen_range(0, CHARS.len())] as char);
         }
         s
     }

@@ -67,11 +67,10 @@ fn test_align() {
 }
 
 fn random_height() -> u8 {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
-
     let mut h: u8 = 1;
-    while h < MAX_HEIGHT_U8 && rng.gen::<u8>() < BIAS { h+=1; }
+    // TODO: This is using the thread_local rng, which is secure (?!). Check
+    // this is actually fast.
+    while h < MAX_HEIGHT_U8 && rand::random::<u8>() < BIAS { h+=1; }
     h
 }
 

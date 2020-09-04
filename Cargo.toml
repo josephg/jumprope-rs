@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Joseph Gentle <me@josephg.com>"]
 
 [dependencies]
-rand = "0.5.5"
-ropey = "0.9.2"
+rand = "0.7"
 
+[dev-dependencies]
 
