@@ -270,12 +270,12 @@ fn bench_stable_ins_del(c: &mut Criterion) {
         1000000,
         10000000,
     ];
-    let benchmark = ParameterizedBenchmark::new("raw_string", stable_ins_del::<String>, params)
+    let benchmark = ParameterizedBenchmark::new("jumprope", stable_ins_del::<JumpRope>, params)
+        // .with_function("raw_string", stable_ins_del::<String>)
         .with_function("ropey", stable_ins_del::<RopeyRope>)
         .with_function("anrope", stable_ins_del::<AnRope>)
         .with_function("xirope", stable_ins_del::<XiRope>)
         .with_function("jumprope_c", stable_ins_del::<CRope>)
-        .with_function("jumprope", stable_ins_del::<JumpRope>)
     ;
 
     c.bench("stable_ins_del", benchmark);
