@@ -3,8 +3,10 @@
 extern crate criterion;
 use criterion::*;
 
-extern crate rand;
-use rand::*;
+// extern crate rand;
+// use rand::seq::IteratorRandom;
+use rand::prelude::*;
+use rand_xorshift::*;
 
 mod rope;
 use self::rope::*;
@@ -26,10 +28,11 @@ use xi_rope::Rope as XiRope;
 const CHARS: &[u8; 83] = b" ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()[]{}<>?,./";
 
 // Gross. Find a way to reuse the code from random_unicode_string.
-fn random_ascii_string<R: Rng>(rng: &mut R, len: usize) -> String {
+fn random_ascii_string(rng: &mut XorShiftRng, len: usize) -> String {
     let mut s = String::new();
     for _ in 0..len {
-        s.push(*rng.choose(CHARS).unwrap() as char);
+        // s.push(*rng.choose(CHARS).unwrap() as char);
+        s.push(CHARS[rng.gen_range(0, CHARS.len())] as char);
     }
     s
 }
@@ -61,19 +64,17 @@ impl Rope for AnRope {
 impl Rope for XiRope {
     fn new() -> Self { XiRope::from("") }
 
-    fn insert_at(&mut self, pos: usize, contents: &str) { self.edit_str(pos, pos, contents); }
-    fn del_at(&mut self, pos: usize, len: usize) { self.edit_str(pos, pos+len, ""); }
+    fn insert_at(&mut self, pos: usize, contents: &str) { self.edit(pos..pos, contents); }
+    fn del_at(&mut self, pos: usize, len: usize) { self.edit(pos..pos+len, ""); }
 
     fn to_string(&self) -> String {
-        let mut output = String::new();
-        self.push_to_string(&mut output);
-        output
+        String::from(self)
     }
     
     // fn len(&self) -> usize { self.len() } // in bytes
     fn char_len(&self) -> usize {
         let mut len = 0;
-        for s in self.iter_chunks() {
+        for s in self.iter_chunks(..) {
             len += s.chars().count();
         }
         len
@@ -150,7 +151,7 @@ fn foo() {
     }
 }
 
-fn gen_strings<R: Rng>(rng: &mut R) -> Vec<String> {
+fn gen_strings(rng: &mut XorShiftRng) -> Vec<String> {
     // I wish there was a better syntax for just making an array here.
     let mut strings = Vec::<String>::new();
     for _ in 0..100 {
@@ -162,7 +163,7 @@ fn gen_strings<R: Rng>(rng: &mut R) -> Vec<String> {
 }
 
 fn ins_append<R: Rope>(b: &mut Bencher) {
-    let mut rng = prng::XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
+    let mut rng = XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
     let strings = gen_strings(&mut rng);
 
     let mut r = R::new();
@@ -178,7 +179,7 @@ fn ins_append<R: Rope>(b: &mut Bencher) {
 }
 
 fn ins_random<R: Rope>(b: &mut Bencher) {
-    let mut rng = prng::XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
+    let mut rng = XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
     let strings = gen_strings(&mut rng);
 
     let mut r = R::new();
@@ -197,7 +198,7 @@ fn ins_random<R: Rope>(b: &mut Bencher) {
 
 fn stable_ins_del<R: Rope + From<String>>(b: &mut Bencher, target_length: &usize) {
     let target_length = *target_length;
-    let mut rng = prng::XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
+    let mut rng = XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
 
     // I wish there was a better syntax for just making an array here.
     let strings = gen_strings(&mut rng);

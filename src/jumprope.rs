@@ -10,7 +10,6 @@
 // use rope::*;
 
 use std::{mem, ptr, str};
-use std::result::Result::{Ok, Err};
 use std::alloc::{alloc, dealloc, Layout};
 use std::cmp::min;
 
@@ -140,7 +139,7 @@ impl Node {
                 nexts: [],
             };
 
-            for mut next in (*node).nexts_mut() {
+            for next in (*node).nexts_mut() {
                 *next = SkipEntry::new();
             }
 
