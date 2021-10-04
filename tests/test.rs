@@ -42,7 +42,7 @@ mod test {
         // r.print();
         assert_eq!(r.to_string(), expected);
         assert_eq!(r.len(), expected.len());
-        assert_eq!(r.char_len(), expected.chars().count());
+        assert_eq!(r.len_chars(), expected.chars().count());
         assert!(*r == JumpRope::from(expected), "Rope comparison fails");
 
         let clone = r.clone();
@@ -80,10 +80,10 @@ mod test {
 
     #[test]
     fn new_string_has_content() {
-        let r = JumpRope::new_from_str("hi there");
+        let r = JumpRope::from_str("hi there");
         check(&r, "hi there");
 
-        let mut r = JumpRope::new_from_str("κόσμε");
+        let mut r = JumpRope::from_str("κόσμε");
         check(&r, "κόσμε");
         r.insert_at(2, "𝕐𝕆😘");
         check(&r, "κό𝕐𝕆😘σμε");
@@ -91,7 +91,7 @@ mod test {
 
     #[test]
     fn del_at_location() {
-        let mut r = JumpRope::new_from_str("012345678");
+        let mut r = JumpRope::from_str("012345678");
         check(&r, "012345678");
 
         r.del_at(8, 1);
@@ -127,7 +127,7 @@ mod test {
         let len = 2000;
         let s = random_ascii_string(len);
 
-        let mut r = JumpRope::new_from_str(s.as_str());
+        let mut r = JumpRope::from_str(s.as_str());
         check(&r, s.as_str());
 
         // Delete everything but the first and last characters

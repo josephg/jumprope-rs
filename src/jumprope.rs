@@ -25,8 +25,12 @@ use crate::utils::*;
 const BIAS: u8 = 100;
 
 // The rope will become less efficient after the string is 2 ^ ROPE_MAX_HEIGHT nodes.
+
+#[cfg(debug_assertions)]
+const NODE_STR_SIZE: usize = 10;
+#[cfg(not(debug_assertions))]
 const NODE_STR_SIZE: usize = 100;
-// const NODE_STR_SIZE: usize = 10;
+
 const MAX_HEIGHT: usize = 20;//NODE_STR_SIZE / mem::size_of::<SkipEntry>();
 const MAX_HEIGHT_U8: u8 = MAX_HEIGHT as u8;
 
@@ -206,8 +210,8 @@ impl RopeCursor {
         }
     }
 
-    fn advance_offset(&mut self, by: usize) {
-        for e in &mut self.0 {
+    fn advance_offset(&mut self, height: usize, by: usize) {
+        for e in &mut self.0[..height] {
             e.skip_chars += by;
         }
     }
@@ -242,7 +246,7 @@ impl JumpRope {
     }
 
     // TODO: Add From trait.
-    pub fn new_from_str(s: &str) -> Self {
+    pub fn from_str(s: &str) -> Self {
         let mut rope = Self::new();
         rope.insert_at(0, s);
         rope
@@ -252,7 +256,7 @@ impl JumpRope {
     //     unsafe { self.head.nexts[0].next() }
     // }
 
-    fn len_chars(&self) -> usize {
+    pub fn len_chars(&self) -> usize {
         self.head.nexts()[self.head.height as usize - 1].skip_chars
     }
 
@@ -301,9 +305,13 @@ impl JumpRope {
         }; MAX_HEIGHT+1])
     }
 
+    fn cursor_at_end(&self) -> RopeCursor {
+        self.cursor_at_char(self.len_chars())
+    }
+
     // Internal fn to create a new node at the specified iterator filled with the specified
     // content.
-    unsafe fn insert_node_at(&mut self, cursor: &mut RopeCursor, contents: &str, num_chars: usize) {
+    unsafe fn insert_node_at(&mut self, cursor: &mut RopeCursor, contents: &str, num_chars: usize, update_cursor: bool) {
         // println!("Insert_node_at {} len {}", contents.len(), self.num_bytes);
         // assert!(contents.len() < NODE_STR_SIZE);
         debug_assert_eq!(count_chars(contents), num_chars);
@@ -339,13 +347,17 @@ impl JumpRope {
             prev_skip.skip_chars = cursor.0[i].skip_chars;
 
             // & move the iterator to the end of the newly inserted node.
-            cursor.0[i].node = new_node;
-            cursor.0[i].skip_chars = num_chars;
+            if update_cursor {
+                cursor.0[i].node = new_node;
+                cursor.0[i].skip_chars = num_chars;
+            }
         }
 
         for i in new_height_usize..head_height {
             (*cursor.0[i].node).nexts_mut()[i].skip_chars += num_chars;
-            cursor.0[i].skip_chars += num_chars;
+            if update_cursor {
+                cursor.0[i].skip_chars += num_chars;
+            }
         }
 
         // self.nexts[self.head.height as usize - 1].skip_chars += num_chars;
@@ -412,7 +424,7 @@ impl JumpRope {
             self.num_bytes += num_inserted_bytes;
             // .... aaaand update all the offset amounts.
             cursor.update_offsets(self.head.height as usize, num_inserted_chars as isize);
-            cursor.advance_offset(num_inserted_chars);
+            cursor.advance_offset(self.head.height as usize, num_inserted_chars);
         } else {
             // There isn't room. We'll need to add at least one new node to the rope.
 
@@ -466,12 +478,12 @@ impl JumpRope {
                 
                 let (next, rem) = remainder.split_at(byte_pos);
                 assert!(!next.is_empty());
-                self.insert_node_at(cursor, next, char_pos);
+                self.insert_node_at(cursor, next, char_pos, true);
                 remainder = rem;
             }
 
             if let Some(end_str) = end_str {
-                self.insert_node_at(cursor, end_str, num_end_chars);
+                self.insert_node_at(cursor, end_str, num_end_chars, false);
             }
         }
     }
@@ -606,13 +618,13 @@ impl Eq for JumpRope {}
 
 impl<'a> From<&'a str> for JumpRope {
     fn from(s: &str) -> JumpRope {
-        JumpRope::new_from_str(s)
+        JumpRope::from_str(s)
     }
 }
 
 impl From<String> for JumpRope {
     fn from(s: String) -> JumpRope {
-        JumpRope::new_from_str(s.as_str())
+        JumpRope::from_str(s.as_str())
     }
 }
 
@@ -629,8 +641,19 @@ impl<'a> Into<String> for &'a JumpRope {
     }
 }
 
+impl<'a> Extend<&'a str> for JumpRope {
+    fn extend<T: IntoIterator<Item = &'a str>>(&mut self, iter: T) {
+        let mut cursor = self.cursor_at_end();
+        iter.into_iter().for_each(|s| {
+            unsafe { self.insert_at_cursor(&mut cursor, &s); }
+        });
+    }
+}
+
 impl Clone for JumpRope {
     fn clone(&self) -> Self {
+        // This method could be a little bit more efficient, but I think improving clone()
+        // performance isn't worth the extra effort.
         let mut r = JumpRope::new();
         let mut cursor = r.cursor_at_start();
         for node in self.node_iter() {
@@ -643,53 +666,6 @@ impl Clone for JumpRope {
     }
 }
 
-
-// impl Clone for JumpRope {
-//     fn clone(&self) -> Self {
-//         let mut r = JumpRope::new();
-//         r.num_bytes = self.num_bytes;
-//         let head_str = self.head.as_str();
-//         r.head.str[..head_str.len()].copy_from_slice(head_str.as_bytes());
-//         r.head.num_bytes = self.head.num_bytes;
-//         r.head.height = self.head.height;
-//
-//         {
-//             // I could just edit the overflow memory directly, but this is safer
-//             // because of aliasing rules.
-//             let head_nexts = r.head.nexts_mut();
-//             for i in 0..self.head.height as usize {
-//                 head_nexts[i].skip_chars = self.nexts[i].skip_chars;
-//             }
-//         }
-//
-//         let mut nodes = [&mut r.head as *mut Node; MAX_HEIGHT];
-//
-//         // The first node the iterator will return is the head. Ignore it.
-//         let mut iter = self.node_iter();
-//         iter.next();
-//         for other in iter {
-//             // This also sets height.
-//             let height = other.height;
-//             let node = Node::alloc_with_height(height);
-//             unsafe {
-//                 (*node).num_bytes = other.num_bytes;
-//                 let len = other.num_bytes as usize;
-//                 (*node).str[..len].copy_from_slice(&other.str[..len]);
-//
-//                 let other_nexts = other.nexts();
-//                 let nexts = (*node).nexts_mut();
-//                 for i in 0..height as usize {
-//                     nexts[i].skip_chars = other_nexts[i].skip_chars;
-//                     (*nodes[i]).nexts_mut()[i].node = node;
-//                     nodes[i] = node;
-//                 }
-//             }
-//         }
-//
-//         r
-//     }
-// }
-
 impl JumpRope {
     // fn new() -> Self {
     //     JumpRope::new()
@@ -701,6 +677,8 @@ impl JumpRope {
 
         let mut cursor = self.cursor_at_char(pos);
         unsafe { self.insert_at_cursor(&mut cursor, contents); }
+
+        debug_assert_eq!(cursor.0[self.head.height as usize - 1].skip_chars, pos + count_chars(contents));
     }
 
     pub fn del_at(&mut self, pos: usize, length: usize) {
@@ -709,6 +687,8 @@ impl JumpRope {
 
         let mut cursor = self.cursor_at_char(pos);
         unsafe { self.del_at_iter(&mut cursor, length); }
+
+        debug_assert_eq!(cursor.0[self.head.height as usize - 1].skip_chars, pos);
     }
 
     pub fn replace(&mut self, range: Range<usize>, content: &str) {
@@ -723,6 +703,8 @@ impl JumpRope {
         if !content.is_empty() {
             unsafe { self.insert_at_cursor(&mut cursor, content); }
         }
+
+        debug_assert_eq!(cursor.0[self.head.height as usize - 1].skip_chars, pos + count_chars(content));
     }
 
     // fn slice(&self, pos: usize, len: usize) -> Result<String, RopeError> {
@@ -730,7 +712,6 @@ impl JumpRope {
        // }
 
     pub fn len(&self) -> usize { self.num_bytes }
-    pub fn char_len(&self) -> usize { self.len_chars() }
     pub fn to_string(&self) -> String { self.into() }
 
     pub fn check(&self) {

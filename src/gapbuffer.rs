@@ -26,6 +26,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
         val
     }
 
+    #[allow(unused)]
     pub fn len_space(&self) -> usize {
         self.gap_len as usize
     }
@@ -35,6 +36,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
         LEN - self.gap_len as usize
     }
 
+    #[allow(unused)]
     pub fn char_len(&self) -> usize {
         count_chars(self.start_as_str()) + count_chars(self.end_as_str())
     }
@@ -92,6 +94,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
     }
 
     // Returns the number of items actually removed.
+    #[allow(unused)]
     pub fn remove(&mut self, pos: usize, del_len: usize) -> usize {
         let len = self.len_bytes();
 
