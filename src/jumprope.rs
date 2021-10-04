@@ -13,6 +13,7 @@ use std::{mem, ptr, str};
 use std::alloc::{alloc, dealloc, Layout};
 use std::cmp::min;
 use std::ops::Range;
+use utils::*;
 
 // Must be <= UINT16_MAX. Benchmarking says this is pretty close to optimal
 // (tested on a mac using clang 4.0 and x86_64).
@@ -219,13 +220,6 @@ impl RopeCursor {
     }
 }
 
-// Get the byte offset after char_pos utf8 characters
-fn str_get_byte_offset(s: &str, char_pos: usize) -> usize {
-    s.char_indices().nth(char_pos).map_or_else(
-        || s.len(),
-        |(i, _)| i
-    )
-}
 
 impl JumpRope {
     pub fn new() -> Self {
@@ -305,7 +299,7 @@ impl JumpRope {
     unsafe fn insert_node_at(&mut self, iter: &mut RopeCursor, contents: &str, num_chars: usize) {
         // println!("Insert_node_at {} len {}", contents.len(), self.num_bytes);
         // assert!(contents.len() < NODE_STR_SIZE);
-        debug_assert_eq!(contents.chars().count(), num_chars);
+        debug_assert_eq!(count_chars(contents), num_chars);
 
         let new_node = Node::alloc();
         (*new_node).num_bytes = contents.len() as u8;
@@ -368,7 +362,7 @@ impl JumpRope {
         // We might be able to insert the new data into the current node, depending on
         // how big it is. We'll count the bytes, and also check that its valid utf8.
         let num_inserted_bytes = contents.len();
-        let num_inserted_chars = contents.chars().count();
+        let num_inserted_chars = count_chars(contents);
 
         // Can we insert into the current node?
         let mut insert_here = (*e).num_bytes as usize + num_inserted_bytes <= NODE_STR_SIZE;
@@ -748,7 +742,7 @@ impl JumpRope {
                 assert!((n as *const Node == &self.head as *const Node) || n.num_bytes > 0);
                 assert!(n.height <= MAX_HEIGHT_U8);
 
-                assert_eq!(n.as_str().chars().count(), n.num_chars());
+                assert_eq!(count_chars(n.as_str()), n.num_chars());
                 for (i, entry) in iter[0..n.height as usize].iter_mut().enumerate() {
                     assert_eq!(entry.node as *const Node, n as *const Node);
                     assert_eq!(entry.skip_chars, num_chars);

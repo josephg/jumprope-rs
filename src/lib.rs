@@ -5,4 +5,7 @@ extern crate rand;
 
 // mod edittablestr;
 mod jumprope;
+mod gapbuffer;
+mod utils;
+
 pub use jumprope::*;
