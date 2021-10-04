@@ -20,7 +20,7 @@ impl Rope {
 
     #[wasm_bindgen]
     pub fn from_str(s: &str) -> Self {
-        Self(JumpRope::new_from_str(s))
+        Self(JumpRope::from(s))
     }
 
     #[wasm_bindgen]
@@ -40,7 +40,7 @@ impl Rope {
 
     #[wasm_bindgen(getter)]
     pub fn length(&self) -> usize {
-        self.0.char_len()
+        self.0.len_chars()
     }
 }
 

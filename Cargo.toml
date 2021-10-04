@@ -12,9 +12,8 @@ license = "ISC OR Apache-2.0"
 members = ["rope-wasm", "bench"]
 
 [dependencies]
-rand = { version = "0.7", features = ["small_rng"] } # rand 0.8 needs special features to support JS; which adds 4kb to the binary size.
-#getrandom = { version = "0.2.3", features = ["js"] }
-#rand = "0.8"
+rand = { version = "0.8", features = ["small_rng"] }
+getrandom = { version = "0.2.3", features = ["js"] }
 
 # This is just used for a couple functions. TODO: Probably better to inline them locally.
 ropey = "1.3.1"
