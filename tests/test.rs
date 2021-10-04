@@ -192,7 +192,7 @@ mod test {
         let mut s = String::new();
         
         // let mut rng = rand::thread_rng();
-        let mut rng = SmallRng::seed_from_u64(321);
+        let mut rng = SmallRng::seed_from_u64(2);
 
         for _i in 0..1000 {
             // println!("{}", _i);
@@ -207,7 +207,7 @@ mod test {
                 // Insert.
                 let pos = rng.gen_range(0, len+1);
                 // Sometimes generate strings longer than a single node to stress everything.
-                let text = random_unicode_string(rng.gen_range(0, 1000));
+                let text = random_unicode_string(rng.gen_range(0, 20));
                 r.insert_at(pos, text.as_str());
                 string_insert_at(&mut s, pos, text.as_str());
             } else {

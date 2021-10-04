@@ -11,6 +11,7 @@
 
 use std::{mem, ptr, str};
 use std::alloc::{alloc, dealloc, Layout};
+use std::cell::Cell;
 use std::cmp::min;
 use std::ops::Range;
 use rand::prelude::*;
@@ -61,8 +62,7 @@ pub struct JumpRope {
     // The nexts array contains an extra entry at [head.height-1] the which points past the skip
     // list. The size is the size of the entire list.
 
-
-    // cached_cursor: Option<RopeCursor>,
+    cached_cursor: Cell<Option<RopeCursor>>,
 }
 
 #[repr(C)] // Prevent parameter reordering.
@@ -85,7 +85,7 @@ pub(super) struct Node {
     nexts: [SkipEntry; 0],
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub(super) struct SkipEntry {
     pub(super) node: *mut Node,
     /// The number of *characters* between the start of the current node and the start of the next
@@ -195,7 +195,7 @@ impl Node {
     // }
 }
 
-
+#[derive(Debug, Clone)]
 struct RopeCursor([SkipEntry; MAX_HEIGHT+1]);
 
 impl RopeCursor {
@@ -212,15 +212,53 @@ impl RopeCursor {
         }
     }
 
-    fn advance_offset(&mut self, height: usize, by: usize) {
+    fn move_within_node(&mut self, height: usize, by: isize) {
         for e in &mut self.0[..height] {
-            e.skip_chars += by;
+            e.skip_chars = e.skip_chars.wrapping_add(by as usize);
         }
     }
 
     fn here_ptr(&self) -> *mut Node {
         self.0[0].node
     }
+
+    fn global_char_pos(&self, head_height: u8) -> usize {
+        self.0[head_height as usize - 1].skip_chars
+    }
+
+    fn local_char_pos(&self) -> usize {
+        self.0[0].skip_chars
+    }
+
+    fn check(&self) {
+        debug_assert!(self.local_char_pos() <= NODE_STR_SIZE);
+    }
+
+    // Returns (range of node), global position of cursor
+    fn get_location(&self, head_height: u8) -> (Range<usize>, usize) {
+        self.check();
+        let local_pos = self.0[0].skip_chars; // Where are we in the current node
+        let global_pos = self.global_char_pos(head_height);
+        let node_len = unsafe { (*self.here_ptr()).num_chars() };
+
+        let node_start = global_pos - local_pos;
+        (node_start..node_start+node_len, global_pos)
+    }
+
+    // fn roll_next(&mut self) {
+    //     let local_pos = self.0[0].skip_chars;
+    //     let node_len = unsafe { (*self.here_ptr()).num_chars() };
+    //
+    //     if local_pos == node_len {
+    //         let self_ptr = self.0[0].node;
+    //         if let Some(next) = unsafe { (*self_ptr).next_ptr().as_ref() } {
+    //             for e in &mut self.0[0..next.height as usize] {
+    //                 e.node = next as *const _ as *mut _;
+    //                 e.skip_chars = 0;
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 
@@ -244,6 +282,7 @@ impl JumpRope {
                 nexts: [],
             },
             nexts: [SkipEntry::new(); MAX_HEIGHT+1],
+            cached_cursor: Cell::new(None),
         }
     }
 
@@ -261,7 +300,7 @@ impl JumpRope {
     // Internal function for navigating to a particular character offset in the rope.  The function
     // returns the list of nodes which point past the position, as well as offsets of how far into
     // their character lists the specified characters are.
-    fn cursor_at_char(&self, char_pos: usize) -> RopeCursor {
+    fn make_cursor_at_char(&self, char_pos: usize) -> RopeCursor {
         assert!(char_pos <= self.len_chars());
 
         let mut e: *const Node = &self.head;
@@ -294,6 +333,57 @@ impl JumpRope {
 
         assert!(offset <= NODE_STR_SIZE);
         iter
+    }
+
+    fn get_cached_cursor_at(&self, char_pos: usize) -> Option<RopeCursor> {
+        if let Some(mut cursor) = self.cached_cursor.take() {
+            let (range, cursor_pos) = cursor.get_location(self.head.height);
+            if range.contains(&char_pos) && char_pos != range.start {
+                // Excellent. We'll use the cached cursor.
+                if cursor_pos != char_pos {
+                    // Fine, just update the cursor slightly.
+                    cursor.move_within_node(self.head.height as usize, char_pos as isize - cursor_pos as isize);
+                }
+                return Some(cursor);
+            } else {
+                // Not sure if this actually helps.
+                // self.cached_cursor.set(Some(cursor));
+            }
+        }
+        None
+    }
+
+    fn cursor_at_char(&self, char_pos: usize) -> RopeCursor {
+        // First try to reuse the cached cursor.
+        // self.make_cursor_at_char(char_pos)
+        self.get_cached_cursor_at(char_pos).unwrap_or_else(|| {
+            self.make_cursor_at_char(char_pos)
+        })
+
+        // let c1 = self.make_cursor_at_char(char_pos);
+        // if let Some(cached) = self.get_cached_cursor_at(char_pos) {
+        //     let mut c1c = c1.clone();
+        //     c1c.roll_next();
+        //
+        //     let mut cachedc = cached.clone();
+        //     cachedc.roll_next();
+        //
+        //     let height = self.head.height as usize;
+        //     assert_eq!(c1c.0[..height], cachedc.0[..height]);
+        //     // assert_eq!(c1.0[..height], cached.0[..height]);
+        //
+        //     // c1
+        //     cached
+        // } else { c1 }
+    }
+
+    fn cache_cursor(&self, cursor: RopeCursor) {
+        // cursor.check();
+        self.cached_cursor.set(Some(cursor));
+    }
+
+    fn discard_cached_cursor(&self) {
+        self.cached_cursor.set(None);
     }
 
     fn cursor_at_start(&self) -> RopeCursor {
@@ -363,6 +453,7 @@ impl JumpRope {
 
     unsafe fn insert_at_cursor(&mut self, cursor: &mut RopeCursor, contents: &str) {
         if contents.is_empty() { return; }
+        // self.discard_cached_cursor();
         // iter contains how far (in characters) into the current element to
         // skip. Figure out how much that is in bytes.
         let mut offset_bytes: usize = 0;
@@ -400,9 +491,13 @@ impl JumpRope {
             if let Some(next) = (*e).first_next_mut().node.as_mut() {
                 if next.str.len_bytes() + num_inserted_bytes <= NODE_STR_SIZE {
                     offset_bytes = 0;
+                    // TODO: Try this on:
+                    // for e in &mut cursor.0[..next.height as usize] {
+                    //     e.node = next;
+
                     for i in 0..next.height {
                         cursor.0[i as usize].node = next;
-                        // tree offset nodes will not be used.
+                        cursor.0[i as usize].skip_chars = 0;
                     }
                     e = next;
 
@@ -421,7 +516,7 @@ impl JumpRope {
             self.num_bytes += num_inserted_bytes;
             // .... aaaand update all the offset amounts.
             cursor.update_offsets(self.head.height as usize, num_inserted_chars as isize);
-            cursor.advance_offset(self.head.height as usize, num_inserted_chars);
+            cursor.move_within_node(self.head.height as usize, num_inserted_chars as isize);
         } else {
             // There isn't room. We'll need to add at least one new node to the rope.
 
@@ -484,30 +579,34 @@ impl JumpRope {
                 self.insert_node_at(cursor, end_str, num_end_chars, false);
             }
         }
+
+        assert_ne!(cursor.local_char_pos(), 0);
     }
 
-    unsafe fn del_at_iter(&mut self, iter: &mut RopeCursor, mut length: usize) {
-        let mut offset = iter.0[0].skip_chars;
-        let mut e = iter.here_ptr();
+    unsafe fn del_at_cursor(&mut self, cursor: &mut RopeCursor, mut length: usize) {
+        if length == 0 { return; }
+        // self.discard_cached_cursor();
+        let mut offset = cursor.local_char_pos();
+        let mut node = cursor.here_ptr();
         while length > 0 {
             {
-                let s = (&*e).first_next();
+                let s = (&*node).first_next();
                 if offset == s.skip_chars {
                     // End of current node. Skip to the start of the next one.
-                    e = s.node;
+                    node = s.node;
                     offset = 0;
                 }
             }
 
-            let num_chars = (&*e).num_chars();
+            let num_chars = (&*node).num_chars();
             let removed = std::cmp::min(length, num_chars - offset);
             assert!(removed > 0);
 
-            let height = (*e).height as usize;
-            if removed < num_chars || e as *const Node == &self.head as *const Node {
+            let height = (*node).height as usize;
+            if removed < num_chars || node as *const Node == &self.head as *const Node {
                 // Just trim the node down.
                 // let s = (*e).as_str();
-                let s = &mut (*e).str;
+                let s = &mut (*node).str;
 
                 // TODO: Consider making a remove_chars in GapBuffer.
                 let leading_bytes = s.count_bytes(offset);
@@ -517,25 +616,25 @@ impl JumpRope {
 
                 self.num_bytes -= removed_bytes;
 
-                for s in (*e).nexts_mut() {
+                for s in (*node).nexts_mut() {
                     s.skip_chars -= removed;
                 }
             } else {
                 // Remove the node from the skip list.
-                for i in 0..(*e).height as usize {
-                    let s = &mut (*iter.0[i].node).nexts_mut()[i];
-                    s.node = (*e).nexts_mut()[i].node;
-                    s.skip_chars += (*e).nexts()[i].skip_chars - removed;
+                for i in 0..(*node).height as usize {
+                    let s = &mut (*cursor.0[i].node).nexts_mut()[i];
+                    s.node = (*node).nexts_mut()[i].node;
+                    s.skip_chars += (*node).nexts()[i].skip_chars - removed;
                 }
 
-                self.num_bytes -= (*e).str.len_bytes();
-                let next = (*e).first_next().node;
-                Node::free(e);
-                e = next;
+                self.num_bytes -= (*node).str.len_bytes();
+                let next = (*node).first_next().node;
+                Node::free(node);
+                node = next;
             }
 
             for i in height..self.head.height as usize {
-                let s = &mut (*iter.0[i].node).nexts_mut()[i];
+                let s = &mut (*cursor.0[i].node).nexts_mut()[i];
                 s.skip_chars -= removed;
             }
 
@@ -663,7 +762,9 @@ impl JumpRope {
         let mut cursor = self.cursor_at_char(pos);
         unsafe { self.insert_at_cursor(&mut cursor, contents); }
 
-        debug_assert_eq!(cursor.0[self.head.height as usize - 1].skip_chars, pos + count_chars(contents));
+        debug_assert_eq!(cursor.global_char_pos(self.head.height), pos + count_chars(contents));
+        // dbg!(&cursor.0[..self.head.height as usize]);
+        self.cache_cursor(cursor);
     }
 
     pub fn del_at(&mut self, pos: usize, length: usize) {
@@ -671,9 +772,10 @@ impl JumpRope {
         if length == 0 { return; }
 
         let mut cursor = self.cursor_at_char(pos);
-        unsafe { self.del_at_iter(&mut cursor, length); }
+        unsafe { self.del_at_cursor(&mut cursor, length); }
 
-        debug_assert_eq!(cursor.0[self.head.height as usize - 1].skip_chars, pos);
+        debug_assert_eq!(cursor.global_char_pos(self.head.height), pos);
+        self.cache_cursor(cursor);
     }
 
     pub fn replace(&mut self, range: Range<usize>, content: &str) {
@@ -683,13 +785,14 @@ impl JumpRope {
 
         let mut cursor = self.cursor_at_char(pos);
         if del_len > 0 {
-            unsafe { self.del_at_iter(&mut cursor, del_len); }
+            unsafe { self.del_at_cursor(&mut cursor, del_len); }
         }
         if !content.is_empty() {
             unsafe { self.insert_at_cursor(&mut cursor, content); }
         }
 
-        debug_assert_eq!(cursor.0[self.head.height as usize - 1].skip_chars, pos + count_chars(content));
+        debug_assert_eq!(cursor.global_char_pos(self.head.height), pos + count_chars(content));
+        self.cache_cursor(cursor);
     }
 
     pub fn len(&self) -> usize { self.num_bytes }
