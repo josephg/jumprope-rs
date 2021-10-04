@@ -7,7 +7,7 @@ authors = ["Joseph Gentle <me@josephg.com>"]
 members = ["rope-wasm", "bench"]
 
 [dependencies]
-rand = "0.7"
+rand = "0.8"
 
 [dev-dependencies]
 

@@ -24,7 +24,7 @@ mod test {
         let mut s = String::new();
         let mut rng = rand::thread_rng();
         for _ in 0..len {
-            s.push(CHARS[rng.gen_range(0, UCHARS.len())] as char);
+            s.push(CHARS[rng.gen_range(0 .. UCHARS.len())] as char);
         }
         s
     }
@@ -36,7 +36,7 @@ mod test {
         let mut s = String::new();
         let mut rng = rand::thread_rng();
         for _ in 0..len {
-            s.push(CHARS[rng.gen_range(0, CHARS.len())] as char);
+            s.push(CHARS[rng.gen_range(0 .. CHARS.len())] as char);
         }
         s
     }
@@ -203,15 +203,15 @@ mod test {
             
             if len == 0 || (len < 1000 && rng.gen::<f32>() < 0.5) {
                 // Insert.
-                let pos = rng.gen_range(0, len+1);
+                let pos = rng.gen_range(0..len+1);
                 // Sometimes generate strings longer than a single node to stress everything.
-                let text = random_unicode_string(rng.gen_range(0, 1000));
+                let text = random_unicode_string(rng.gen_range(0..1000));
                 r.insert_at(pos, text.as_str());
                 string_insert_at(&mut s, pos, text.as_str());
             } else {
                 // Delete
-                let pos = rng.gen_range(0, len);
-                let dlen = min(rng.gen_range(0, 10), len - pos);
+                let pos = rng.gen_range(0..len);
+                let dlen = min(rng.gen_range(0..10), len - pos);
 
                 r.del_at(pos, dlen);
                 string_del_at(&mut s, pos, dlen);

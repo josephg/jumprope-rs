@@ -39,42 +39,6 @@ struct SkipEntry {
 // of that space taken up by characters and by the height are different depentant on a node's
 // height.
 
-#[repr(C)] // Prevent parameter reordering.
-struct Node {
-    // The first num_bytes of this store a valid utf8 string.
-    str: [u8; NODE_STR_SIZE],
-
-    // Number of bytes in str in use
-    num_bytes: u8,
-
-    // Height of nexts array.
-    height: u8,
-
-    // #[repr(align(std::align_of::<SkipEntry>()))]
-    
-    // This array actually has the size of height. It would be cleaner to
-    // declare it as [SkipEntry; 0], but I haven't done that because we always
-    // have at least a height of 1 anyway, and this makes it a bit cheaper to
-    // look at the first skipentry item.
-    nexts: [SkipEntry; 0],
-}
-
-// Make sure nexts uses correct alignment. This should be guaranteed by repr(C)
-// This test will fail if this ever stops being true.
-#[test]
-fn test_align() {
-    #[repr(C)] struct Check([SkipEntry; 0]);
-    assert!(mem::align_of::<Check>() >= mem::align_of::<SkipEntry>());
-}
-
-fn random_height() -> u8 {
-    let mut h: u8 = 1;
-    // TODO: This is using the thread_local rng, which is secure (?!). Check
-    // this is actually fast.
-    while h < MAX_HEIGHT_U8 && rand::random::<u8>() < BIAS { h+=1; }
-    h
-}
-
 #[repr(C)]
 pub struct JumpRope {
     // The total number of characters in the rope
@@ -96,6 +60,41 @@ pub struct JumpRope {
 
     // The nexts array contains an extra entry at [head.height-1] the which
     // points past the skip list. The size is the size of the entire list.
+}
+
+#[repr(C)] // Prevent parameter reordering.
+struct Node {
+    // The first num_bytes of this store a valid utf8 string.
+    str: [u8; NODE_STR_SIZE],
+
+    // Number of bytes in str in use
+    num_bytes: u8,
+
+    // Height of nexts array.
+    height: u8,
+
+    // #[repr(align(std::align_of::<SkipEntry>()))]
+
+    // This array actually has the size of height; but we dynamically allocate the structure on the
+    // heap to avoid wasting memory.
+    // TODO: Honestly this memory saving is very small anyway. Reconsider this choice.
+    nexts: [SkipEntry; 0],
+}
+
+// Make sure nexts uses correct alignment. This should be guaranteed by repr(C)
+// This test will fail if this ever stops being true.
+#[test]
+fn test_align() {
+    #[repr(C)] struct Check([SkipEntry; 0]);
+    assert!(mem::align_of::<Check>() >= mem::align_of::<SkipEntry>());
+}
+
+fn random_height() -> u8 {
+    let mut h: u8 = 1;
+    // TODO: This is using the thread_local rng, which is secure (?!). Check
+    // this is actually fast.
+    while h < MAX_HEIGHT_U8 && rand::random::<u8>() < BIAS { h+=1; }
+    h
 }
 
 
