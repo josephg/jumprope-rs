@@ -3,10 +3,11 @@
 extern crate criterion;
 use criterion::*;
 
+use crdt_testdata::*;
+
 // extern crate rand;
 // use rand::seq::IteratorRandom;
 use rand::prelude::*;
-use rand_xorshift::*;
 
 mod rope;
 use self::rope::*;
@@ -28,20 +29,25 @@ use xi_rope::Rope as XiRope;
 const CHARS: &[u8; 83] = b" ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()[]{}<>?,./";
 
 // Gross. Find a way to reuse the code from random_unicode_string.
-fn random_ascii_string(rng: &mut XorShiftRng, len: usize) -> String {
+fn random_ascii_string(rng: &mut SmallRng, len: usize) -> String {
     let mut s = String::new();
     for _ in 0..len {
         // s.push(*rng.choose(CHARS).unwrap() as char);
-        s.push(CHARS[rng.gen_range(0, CHARS.len())] as char);
+        s.push(CHARS[rng.gen_range(0 .. CHARS.len())] as char);
     }
     s
 }
 
 impl Rope for JumpRope {
+    const NAME: &'static str = "JumpRope";
+
     fn new() -> Self { JumpRope::new() }
 
     fn insert_at(&mut self, pos: usize, contents: &str) { self.insert_at(pos, contents); }
     fn del_at(&mut self, pos: usize, len: usize) { self.del_at(pos, len); }
+    fn edit_at(&mut self, pos: usize, del_len: usize, ins_content: &str) {
+        self.replace(pos..pos+del_len, ins_content);
+    }
 
     fn to_string(&self) -> String { self.to_string() }
     
@@ -50,6 +56,8 @@ impl Rope for JumpRope {
 }
 
 impl Rope for AnRope {
+    const NAME: &'static str = "AnRope";
+
     fn new() -> Self { AnRope::new() }
 
     fn insert_at(&mut self, pos: usize, contents: &str) { *self = self.insert_str(pos, contents); }
@@ -62,10 +70,19 @@ impl Rope for AnRope {
 }
 
 impl Rope for XiRope {
+    const NAME: &'static str = "XiRope";
+
     fn new() -> Self { XiRope::from("") }
 
-    fn insert_at(&mut self, pos: usize, contents: &str) { self.edit(pos..pos, contents); }
-    fn del_at(&mut self, pos: usize, len: usize) { self.edit(pos..pos+len, ""); }
+    fn insert_at(&mut self, pos: usize, contents: &str) {
+        self.edit(pos..pos, contents);
+    }
+    fn del_at(&mut self, pos: usize, len: usize) {
+        self.edit(pos..pos+len, "");
+    }
+    fn edit_at(&mut self, pos: usize, del_len: usize, ins_content: &str) {
+        self.edit(pos..pos+del_len, ins_content);
+    }
 
     fn to_string(&self) -> String {
         String::from(self)
@@ -82,6 +99,8 @@ impl Rope for XiRope {
 }
 
 impl Rope for RopeyRope {
+    const NAME: &'static str = "Ropey";
+
     fn new() -> Self { RopeyRope::new() }
 
     fn insert_at(&mut self, pos: usize, contents: &str) {
@@ -102,6 +121,8 @@ impl Rope for RopeyRope {
 
 use std::os::raw::c_char;
 use std::ffi::CString;
+use crdt_testdata::{load_testing_data, TestData};
+use criterion::measurement::WallTime;
 
 #[repr(C)]
 struct CRopeRaw { _unused : [ u8 ; 0 ] }
@@ -119,10 +140,15 @@ extern {
 
 struct CRope(*mut CRopeRaw);
 impl Rope for CRope {
+    const NAME: &'static str = "C-JumpRope";
+
     fn new() -> Self { unsafe { CRope(rope_new()) } }
 
     fn insert_at(&mut self, pos: usize, contents: &str) {
-        unsafe { rope_insert(self.0, pos, CString::new(contents).unwrap().as_ptr()); }
+        unsafe {
+            let cstr = CString::new(contents).unwrap();
+            rope_insert(self.0, pos, cstr.as_ptr());
+        }
     }
     fn del_at(&mut self, pos: usize, len: usize) {
         unsafe { rope_del(self.0, pos, len); }
@@ -139,7 +165,8 @@ impl Drop for CRope {
 }
 impl From<String> for CRope {
     fn from(s: String) -> Self {
-        CRope(unsafe { rope_new_with_utf8(CString::new(s).unwrap().as_ptr()) })
+        let cstr = CString::new(s).unwrap();
+        CRope(unsafe { rope_new_with_utf8(cstr.as_ptr()) })
     }
 }
 
@@ -151,11 +178,11 @@ fn foo() {
     }
 }
 
-fn gen_strings(rng: &mut XorShiftRng) -> Vec<String> {
+fn gen_strings(rng: &mut SmallRng) -> Vec<String> {
     // I wish there was a better syntax for just making an array here.
     let mut strings = Vec::<String>::new();
     for _ in 0..100 {
-        let len = rng.gen_range(1, 3);
+        let len = rng.gen_range(1 .. 3);
         strings.push(random_ascii_string(rng, len));
     }
 
@@ -163,14 +190,14 @@ fn gen_strings(rng: &mut XorShiftRng) -> Vec<String> {
 }
 
 fn ins_append<R: Rope>(b: &mut Bencher) {
-    let mut rng = XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
+    let mut rng = SmallRng::seed_from_u64(123);
     let strings = gen_strings(&mut rng);
 
     let mut r = R::new();
     let mut len = 0;
     b.iter(|| {
         // let pos = rng.gen_range(0, len+1);
-        let text = &strings[rng.gen_range(0, strings.len())];
+        let text = &strings[rng.gen_range(0 .. strings.len())];
         r.insert_at(len, text.as_str());
         len += text.chars().count();
     });
@@ -179,15 +206,15 @@ fn ins_append<R: Rope>(b: &mut Bencher) {
 }
 
 fn ins_random<R: Rope>(b: &mut Bencher) {
-    let mut rng = XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
+    let mut rng = SmallRng::seed_from_u64(123);
     let strings = gen_strings(&mut rng);
 
     let mut r = R::new();
     // Len isn't needed, but its here to allow direct comparison with ins_append.
     let mut len = 0;
     b.iter(|| {
-        let pos = rng.gen_range(0, len+1);
-        let text = &strings[rng.gen_range(0, strings.len())];
+        let pos = rng.gen_range(0 .. len+1);
+        let text = &strings[rng.gen_range(0 .. strings.len())];
         r.insert_at(pos, text.as_str());
         len += text.chars().count();
     });
@@ -198,7 +225,7 @@ fn ins_random<R: Rope>(b: &mut Bencher) {
 
 fn stable_ins_del<R: Rope + From<String>>(b: &mut Bencher, target_length: &usize) {
     let target_length = *target_length;
-    let mut rng = XorShiftRng::from_seed([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4]);
+    let mut rng = SmallRng::seed_from_u64(123);
 
     // I wish there was a better syntax for just making an array here.
     let strings = gen_strings(&mut rng);
@@ -218,14 +245,14 @@ fn stable_ins_del<R: Rope + From<String>>(b: &mut Bencher, target_length: &usize
         // if len == 0 || rng.gen::<bool>() {
         if len <= target_length {
             // Insert
-            let pos = rng.gen_range(0, len+1);
-            let text = &strings[rng.gen_range(0, strings.len())];
+            let pos = rng.gen_range(0 .. len+1);
+            let text = &strings[rng.gen_range(0 .. strings.len())];
             r.insert_at(pos, text.as_str());
             len += text.chars().count();
         } else {
             // Delete
-            let pos = rng.gen_range(0, len);
-            let dlen = min(rng.gen_range(0, 10), len - pos);
+            let pos = rng.gen_range(0 .. len);
+            let dlen = min(rng.gen_range(0 .. 10), len - pos);
             len -= dlen;
 
             r.del_at(pos, dlen);
@@ -291,6 +318,46 @@ fn bench_simple(c: &mut Criterion) {
     ], 1000000);
 }
 
-criterion_group!(benches, bench_ins_append, bench_ins_random, bench_simple, bench_stable_ins_del);
+fn load_named_data(name: &str) -> TestData {
+    let filename = format!("/home/seph/src/diamond-types/benchmark_data/{}.json.gz", name);
+    load_testing_data(&filename)
+}
+
+// const DATASETS: &[&str] = &["automerge-paper"];
+const DATASETS: &[&str] = &["automerge-paper", "rustcode", "sveltecomponent", "seph-blog1"];
+
+fn realworld(c: &mut Criterion) {
+    for name in DATASETS {
+        let mut group = c.benchmark_group("realworld");
+        let test_data = load_named_data(name);
+        group.throughput(Throughput::Elements(test_data.len() as u64));
+
+        fn x<R: Rope>(group: &mut BenchmarkGroup<WallTime>, name: &str, test_data: &TestData) {
+            group.bench_function(BenchmarkId::new(R::NAME, name), |b| {
+                b.iter(|| {
+                    let mut r = R::new();
+                    for txn in &test_data.txns {
+                        for TestPatch(pos, del, ins) in &txn.patches {
+                            r.edit_at(*pos, *del, ins);
+                        }
+                    }
+                    assert_eq!(r.char_len(), test_data.end_content.len());
+                    black_box(r.char_len());
+                })
+            });
+        }
+
+        // x::<RopeyRope>(&mut group, name, &test_data);
+        x::<JumpRope>(&mut group, name, &test_data);
+        // x::<CRope>(&mut group, name, &test_data);
+        // x::<XiRope>(&mut group, name, &test_data);
+        // x::<AnRope>(&mut group, name, &test_data);
+        // x::<String>(&mut group, name, &test_data);
+
+        group.finish();
+    }
+}
+
+criterion_group!(benches, bench_ins_append, bench_ins_random, bench_simple, bench_stable_ins_del, realworld);
 // criterion_group!(benches, bench_all);
 criterion_main!(benches);

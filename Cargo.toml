@@ -3,6 +3,9 @@ name = "jumprope"
 version = "0.1.0"
 authors = ["Joseph Gentle <me@josephg.com>"]
 
+[workspace]
+members = ["rope-wasm", "bench"]
+
 [dependencies]
 rand = "0.7"
 

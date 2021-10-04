@@ -12,6 +12,7 @@
 use std::{mem, ptr, str};
 use std::alloc::{alloc, dealloc, Layout};
 use std::cmp::min;
+use std::ops::Range;
 
 // Must be <= UINT16_MAX. Benchmarking says this is pretty close to optimal
 // (tested on a mac using clang 4.0 and x86_64).
@@ -256,7 +257,7 @@ impl JumpRope {
     //     unsafe { self.head.nexts[0].next() }
     // }
 
-    fn num_chars(&self) -> usize {
+    fn len_chars(&self) -> usize {
         self.head.nexts()[self.head.height as usize - 1].skip_chars
     }
 
@@ -266,7 +267,7 @@ impl JumpRope {
     // returns the list of nodes which point past the position, as well as offsets of how far into
     // their character lists the specified characters are.
     fn iter_at_char(&self, char_pos: usize) -> RopeCursor {
-        assert!(char_pos <= self.num_chars());
+        assert!(char_pos <= self.len_chars());
 
         let mut e: *const Node = &self.head;
         let mut height = self.head.height as usize - 1;
@@ -566,7 +567,7 @@ impl PartialEq for JumpRope {
     // very easily.
     fn eq(&self, other: &JumpRope) -> bool {
         if self.num_bytes != other.num_bytes
-                || self.num_chars() != other.num_chars() {
+                || self.len_chars() != other.len_chars() {
             return false
         }
 
@@ -685,19 +686,33 @@ impl JumpRope {
     // }
 
     pub fn insert_at(&mut self, mut pos: usize, contents: &str) {
-        if contents.len() == 0 { return; }
-        
-        pos = std::cmp::min(pos, self.num_chars());
+        if contents.is_empty() { return; }
+        pos = std::cmp::min(pos, self.len_chars());
+
         let mut cursor = self.iter_at_char(pos);
         unsafe { self.insert_at_iter(&mut cursor, contents); }
     }
 
     pub fn del_at(&mut self, pos: usize, length: usize) {
-        let length = std::cmp::min(length, self.num_chars() - pos);
+        let length = usize::min(length, self.len_chars() - pos);
         if length == 0 { return; }
 
         let mut cursor = self.iter_at_char(pos);
         unsafe { self.del_at_iter(&mut cursor, length); }
+    }
+
+    pub fn replace(&mut self, range: Range<usize>, content: &str) {
+        let len = self.len_chars();
+        let pos = usize::min(range.start, len);
+        let del_len = usize::min(range.end, len) - pos;
+
+        let mut cursor = self.iter_at_char(pos);
+        if del_len > 0 {
+            unsafe { self.del_at_iter(&mut cursor, del_len); }
+        }
+        if !content.is_empty() {
+            unsafe { self.insert_at_iter(&mut cursor, content); }
+        }
     }
 
     // fn slice(&self, pos: usize, len: usize) -> Result<String, RopeError> {
@@ -705,7 +720,7 @@ impl JumpRope {
        // }
 
     pub fn len(&self) -> usize { self.num_bytes }
-    pub fn char_len(&self) -> usize { self.num_chars() }
+    pub fn char_len(&self) -> usize { self.len_chars() }
     pub fn to_string(&self) -> String { self.into() }
 
     pub fn check(&self) {
@@ -756,13 +771,13 @@ impl JumpRope {
             
             // println!("self bytes: {}, count bytes {}", self.num_bytes, num_bytes);
             assert_eq!(self.num_bytes, num_bytes);
-            assert_eq!(self.num_chars(), num_chars);
+            assert_eq!(self.len_chars(), num_chars);
         }
     }
 
     // TODO: Don't export this.
     pub fn print(&self) {
-        println!("chars: {}\tbytes: {}\theight: {}", self.num_chars(), self.num_bytes, self.head.height);
+        println!("chars: {}\tbytes: {}\theight: {}", self.len_chars(), self.num_bytes, self.head.height);
 
         print!("HEAD:");
         for s in self.head.nexts() {

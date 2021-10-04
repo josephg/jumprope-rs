@@ -8,6 +8,8 @@ use std::ptr;
 // }
 
 impl Rope for String {
+    const NAME: &'static str = "String";
+
     fn new() -> Self { String::new() }
     
     fn insert_at(&mut self, char_pos: usize, contents: &str) {
