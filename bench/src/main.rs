@@ -52,7 +52,7 @@ impl Rope for JumpRope {
     fn to_string(&self) -> String { self.to_string() }
     
     // fn len(&self) -> usize { self.len() } // in bytes
-    fn char_len(&self) -> usize { self.char_len() } // in unicode values
+    fn char_len(&self) -> usize { self.len_chars() } // in unicode values
 }
 
 impl Rope for AnRope {
