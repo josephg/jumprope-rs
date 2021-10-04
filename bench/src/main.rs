@@ -347,11 +347,15 @@ fn realworld(c: &mut Criterion) {
             });
         }
 
-        // x::<RopeyRope>(&mut group, name, &test_data);
+        x::<RopeyRope>(&mut group, name, &test_data);
         x::<JumpRope>(&mut group, name, &test_data);
-        // x::<CRope>(&mut group, name, &test_data);
+        x::<CRope>(&mut group, name, &test_data);
+
+        // These two crash on non-ascii characters.
         // x::<XiRope>(&mut group, name, &test_data);
         // x::<AnRope>(&mut group, name, &test_data);
+
+        // This takes too long to run.
         // x::<String>(&mut group, name, &test_data);
 
         group.finish();
