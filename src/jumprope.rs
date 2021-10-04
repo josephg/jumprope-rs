@@ -252,8 +252,7 @@ impl JumpRope {
         }
     }
 
-    // TODO: Add From trait.
-    pub fn from_str(s: &str) -> Self {
+    fn new_from_str(s: &str) -> Self {
         let mut rope = Self::new();
         rope.insert_at(0, s);
         rope
@@ -419,7 +418,6 @@ impl JumpRope {
                 }
             }
         }
-        drop(offset);
 
         if insert_here {
             // println!("insert_here {}", contents);
@@ -516,7 +514,7 @@ impl JumpRope {
             assert!(removed > 0);
 
             let height = (*node).height as usize;
-            if removed < num_chars || node as *const Node == &self.head as *const Node {
+            if removed < num_chars || std::ptr::eq(node, &self.head) {
                 // Just trim the node down.
                 // let s = (*e).as_str();
                 let s = &mut (*node).str;
@@ -556,6 +554,12 @@ impl JumpRope {
     }
 }
 
+impl Default for JumpRope {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for JumpRope {
     fn drop(&mut self) {
         let mut node = self.head.first_next().node;
@@ -566,6 +570,12 @@ impl Drop for JumpRope {
                 node = next;
             }
         }
+    }
+}
+
+impl<'a> From<&'a str> for JumpRope {
+    fn from(str: &str) -> Self {
+        JumpRope::new_from_str(str)
     }
 }
 
@@ -616,21 +626,8 @@ impl PartialEq for JumpRope {
 }
 impl Eq for JumpRope {}
 
-
-impl<'a> From<&'a str> for JumpRope {
-    fn from(s: &str) -> JumpRope {
-        JumpRope::from_str(s)
-    }
-}
-
-impl From<String> for JumpRope {
-    fn from(s: String) -> JumpRope {
-        JumpRope::from_str(s.as_str())
-    }
-}
-
-impl<'a> Into<String> for &'a JumpRope {
-    fn into(self) -> String {
+impl ToString for JumpRope {
+    fn to_string(&self) -> String {
         let mut content = String::with_capacity(self.num_bytes);
 
         for node in self.node_iter() {
@@ -646,7 +643,7 @@ impl<'a> Extend<&'a str> for JumpRope {
     fn extend<T: IntoIterator<Item = &'a str>>(&mut self, iter: T) {
         let mut cursor = self.cursor_at_end();
         iter.into_iter().for_each(|s| {
-            unsafe { self.insert_at_cursor(&mut cursor, &s); }
+            unsafe { self.insert_at_cursor(&mut cursor, s); }
         });
     }
 }
@@ -706,7 +703,7 @@ impl JumpRope {
     }
 
     pub fn len(&self) -> usize { self.num_bytes }
-    pub fn to_string(&self) -> String { self.into() }
+    pub fn is_empty(&self) -> bool { self.num_bytes == 0 }
 
     pub fn check(&self) {
         // #[cfg(test)]
@@ -731,7 +728,7 @@ impl JumpRope {
 
             for n in self.node_iter() {
                 // println!("visiting {:?}", n.as_str());
-                assert!(!n.str.is_empty() || (n as *const Node == &self.head as *const Node));
+                assert!(!n.str.is_empty() || std::ptr::eq(n, &self.head));
                 assert!(n.height <= MAX_HEIGHT_U8);
                 assert!(n.height >= 1);
 
@@ -761,15 +758,15 @@ impl JumpRope {
         }
     }
 
-    // TODO: Don't export this.
-    pub fn print(&self) {
+    #[allow(unused)]
+    pub(crate) fn print(&self) {
         println!("chars: {}\tbytes: {}\theight: {}", self.len_chars(), self.num_bytes, self.head.height);
 
         print!("HEAD:");
         for s in self.head.nexts() {
             print!(" |{} ", s.skip_chars);
         }
-        println!("");
+        println!();
 
         for (i, node) in self.node_iter().enumerate() {
             print!("{}:", i);

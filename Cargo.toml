@@ -3,6 +3,10 @@ name = "jumprope"
 version = "0.1.0"
 authors = ["Joseph Gentle <me@josephg.com>"]
 edition = "2018"
+description = "Simple, fast rope (fancy string) library built on top of Skiplists"
+resolver = "2"
+repository = "https://github.com/josephg/rustrope"
+license = "ISC OR Apache-2.0"
 
 [workspace]
 members = ["rope-wasm", "bench"]
