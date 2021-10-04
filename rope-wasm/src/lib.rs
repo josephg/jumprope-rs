@@ -4,7 +4,7 @@ extern crate wee_alloc;
 use jumprope::JumpRope;
 // use ropey::Rope as Ropey;
 
-// Use `wee_alloc` as the global allocator.
+// Use `wee_alloc` as the global allocator. This saves 6kb in binary size.
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
