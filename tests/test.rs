@@ -196,6 +196,7 @@ mod test {
 
         for _i in 0..1000 {
             // println!("{}", _i);
+            // r.print();
             check(&r, s.as_str());
 
             let len = s.chars().count();

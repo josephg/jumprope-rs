@@ -107,25 +107,6 @@ impl<const LEN: usize> GapBuffer<LEN> {
         del_len
     }
 
-
-    // Returns the number of items actually removed.
-    // pub fn remove(&mut self, pos: usize, del_len: usize) -> usize {
-    //     let len = self.len_bytes();
-    //
-    //     if pos >= len { return 0; }
-    //     let remove = del_len.min(len - pos);
-    //
-    //     self.move_gap(pos);
-    //
-    //     if cfg!(debug_assertions) {
-    //         self.data[
-    //             (self.gap_start+self.gap_len) as usize..(self.gap_start+self.gap_len) as usize + remove
-    //             ].fill(0);
-    //     }
-    //     self.gap_len += remove as u8;
-    //     remove
-    // }
-
     #[inline]
     unsafe fn slice_to_str(arr: &[u8]) -> &str {
         if cfg!(debug_assertions) {

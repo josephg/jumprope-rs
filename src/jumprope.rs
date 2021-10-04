@@ -48,19 +48,21 @@ pub struct JumpRope {
     // The total number of bytes which the characters in the rope take up
     num_bytes: usize,
 
-    // The first node is inline. The height is the max height we've ever used in
-    // the rope.
+    // The first node is inline. The height is the max height we've ever used in the rope + 1. The
+    // highest entry points "past the end" of the list, including the entire list length.
     pub(super) head: Node,
 
-    // This is so dirty. The first node is embedded in JumpRope; but we need to
-    // allocate enough room for height to get arbitrarily large. I could insist
-    // on JumpRope always getting allocated on the heap, but for small strings
-    // its better that the first string is just on the stack.
-    // So this struct is repr(C) and I'm just padding out the struct directly.
+    // This is so dirty. The first node is embedded in JumpRope; but we need to allocate enough room
+    // for height to get arbitrarily large. I could insist on JumpRope always getting allocated on
+    // the heap, but for small strings its better that the first string is just on the stack. So
+    // this struct is repr(C) and I'm just padding out the struct directly.
     nexts: [SkipEntry; MAX_HEIGHT+1],
 
-    // The nexts array contains an extra entry at [head.height-1] the which
-    // points past the skip list. The size is the size of the entire list.
+    // The nexts array contains an extra entry at [head.height-1] the which points past the skip
+    // list. The size is the size of the entire list.
+
+
+    // cached_cursor: Option<RopeCursor>,
 }
 
 #[repr(C)] // Prevent parameter reordering.
@@ -252,10 +254,6 @@ impl JumpRope {
         rope
     }
 
-    // fn head(&self) -> Option<&Node> {
-    //     unsafe { self.head.nexts[0].next() }
-    // }
-
     pub fn len_chars(&self) -> usize {
         self.head.nexts()[self.head.height as usize - 1].skip_chars
     }
@@ -323,21 +321,20 @@ impl JumpRope {
         // (*new_node).num_bytes = contents.len() as u8;
         // (*new_node).str[..contents.len()].copy_from_slice(contents.as_bytes());
 
-        let new_height = (*new_node).height;
+        let new_height = (*new_node).height as usize;
 
         let mut head_height = self.head.height as usize;
-        let new_height_usize = new_height as usize;
-        while head_height <= new_height_usize {
+        while head_height <= new_height {
             // TODO: Why do we copy here? Explain it in a comment. This is
             // currently lifted from the C code.
             self.nexts[head_height] = self.nexts[head_height - 1];
             cursor.0[head_height] = cursor.0[head_height - 1];
 
-            self.head.height += 1;
+            self.head.height += 1; // Ends up 1 more than the max node height.
             head_height += 1;
         }
 
-        for i in 0..new_height_usize {
+        for i in 0..new_height {
             let prev_skip = &mut (*cursor.0[i].node).nexts_mut()[i];
             let nexts = (*new_node).nexts_mut();
             nexts[i].node = prev_skip.node;
@@ -353,7 +350,7 @@ impl JumpRope {
             }
         }
 
-        for i in new_height_usize..head_height {
+        for i in new_height..head_height {
             (*cursor.0[i].node).nexts_mut()[i].skip_chars += num_chars;
             if update_cursor {
                 cursor.0[i].skip_chars += num_chars;
@@ -449,6 +446,7 @@ impl JumpRope {
                 self.num_bytes -= num_end_bytes;
                 Some(end_str)
             } else {
+                // TODO: Don't just skip. Append as many characters as we can here.
                 None
             };
 
@@ -515,15 +513,6 @@ impl JumpRope {
                 let leading_bytes = s.count_bytes(offset);
                 s.move_gap(leading_bytes);
                 let removed_bytes = str_get_byte_offset(s.end_as_str(), removed);
-                // let trailing_bytes = (*e).num_bytes as usize - leading_bytes - removed_bytes;
-                //
-                // let c = &mut (*e).str;
-                // if trailing_bytes > 0 {
-                //     ptr::copy(
-                //         &c[leading_bytes + removed_bytes],
-                //         &mut c[leading_bytes],
-                //         trailing_bytes);
-                // }
                 s.remove_at_gap(removed_bytes);
 
                 self.num_bytes -= removed_bytes;
@@ -667,10 +656,6 @@ impl Clone for JumpRope {
 }
 
 impl JumpRope {
-    // fn new() -> Self {
-    //     JumpRope::new()
-    // }
-
     pub fn insert_at(&mut self, mut pos: usize, contents: &str) {
         if contents.is_empty() { return; }
         pos = std::cmp::min(pos, self.len_chars());
@@ -707,10 +692,6 @@ impl JumpRope {
         debug_assert_eq!(cursor.0[self.head.height as usize - 1].skip_chars, pos + count_chars(content));
     }
 
-    // fn slice(&self, pos: usize, len: usize) -> Result<String, RopeError> {
-    //        unimplemented!();
-       // }
-
     pub fn len(&self) -> usize { self.num_bytes }
     pub fn to_string(&self) -> String { self.into() }
 
@@ -739,6 +720,7 @@ impl JumpRope {
                 // println!("visiting {:?}", n.as_str());
                 assert!(!n.str.is_empty() || (n as *const Node == &self.head as *const Node));
                 assert!(n.height <= MAX_HEIGHT_U8);
+                assert!(n.height >= 1);
 
                 assert_eq!(count_chars(n.as_str_1()) + count_chars(n.as_str_2()), n.num_chars());
                 for (i, entry) in iter[0..n.height as usize].iter_mut().enumerate() {
