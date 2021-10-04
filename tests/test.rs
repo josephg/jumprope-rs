@@ -3,12 +3,7 @@
 
 #[cfg(test)]
 mod test {
-
-    extern crate jumprope;
-    use self::jumprope::JumpRope;
-
-    extern crate rand;
-    use self::rand::Rng;
+    use rand::prelude::*;
 
     use std::cmp::min;
 
@@ -41,8 +36,9 @@ mod test {
         s
     }
 
-    fn check<'a>(r: &JumpRope, expected: &'a str) {
+    fn check(r: &JumpRope, expected: &str) {
         r.check();
+        // println!("--- rope ---");
         // r.print();
         assert_eq!(r.to_string(), expected);
         assert_eq!(r.len(), expected.len());
@@ -50,6 +46,7 @@ mod test {
         assert!(*r == JumpRope::from(expected), "Rope comparison fails");
 
         let clone = r.clone();
+        // println!("--- clone ---");
         // clone.print();
         clone.check();
         assert!(*r == clone, "Rope does not equal its clone");
@@ -95,13 +92,14 @@ mod test {
     #[test]
     fn del_at_location() {
         let mut r = JumpRope::new_from_str("012345678");
+        check(&r, "012345678");
 
         r.del_at(8, 1);
         check(&r, "01234567");
-        
+
         r.del_at(0, 1);
         check(&r, "1234567");
-        
+
         r.del_at(5, 1);
         check(&r, "123457");
         
@@ -140,6 +138,7 @@ mod test {
 
 
     use std::ptr;
+    use jumprope::JumpRope;
 
     fn string_insert_at(s: &mut String, char_pos: usize, contents: &str) {
         // If you try to write past the end of the string for now I'll just write at the end.
@@ -192,9 +191,11 @@ mod test {
         let mut r = JumpRope::new();
         let mut s = String::new();
         
-        let mut rng = rand::thread_rng();
+        // let mut rng = rand::thread_rng();
+        let mut rng = SmallRng::seed_from_u64(321);
 
-        for _ in 0..1000 {
+        for _i in 0..1000 {
+            // println!("{}", _i);
             check(&r, s.as_str());
 
             let len = s.chars().count();

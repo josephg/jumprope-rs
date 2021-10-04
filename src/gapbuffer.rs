@@ -1,6 +1,8 @@
 // const LEN: usize = 5;
 // const LEN: usize = 100;
 
+use crate::utils::*;
+
 #[derive(Debug, Clone, Eq)]
 pub struct GapBuffer<const LEN: usize> {
     data: [u8; LEN],
@@ -28,8 +30,13 @@ impl<const LEN: usize> GapBuffer<LEN> {
         self.gap_len as usize
     }
 
-    pub fn len(&self) -> usize {
+    /// In bytes.
+    pub fn len_bytes(&self) -> usize {
         LEN - self.gap_len as usize
+    }
+
+    pub fn char_len(&self) -> usize {
+        count_chars(self.start_as_str()) + count_chars(self.end_as_str())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -75,33 +82,85 @@ impl<const LEN: usize> GapBuffer<LEN> {
         }
     }
 
+    pub fn remove_at_gap(&mut self, del_len: usize) {
+        if cfg!(debug_assertions) {
+            self.data[
+                (self.gap_start+self.gap_len) as usize..(self.gap_start+self.gap_len) as usize + del_len
+                ].fill(0);
+        }
+        self.gap_len += del_len as u8;
+    }
+
     // Returns the number of items actually removed.
     pub fn remove(&mut self, pos: usize, del_len: usize) -> usize {
-        let len = self.len();
+        let len = self.len_bytes();
 
         if pos >= len { return 0; }
-        let remove = del_len.min(len - pos);
+        let del_len = del_len.min(len - pos);
 
         self.move_gap(pos);
 
+        self.remove_at_gap(del_len);
+        del_len
+    }
+
+
+    // Returns the number of items actually removed.
+    // pub fn remove(&mut self, pos: usize, del_len: usize) -> usize {
+    //     let len = self.len_bytes();
+    //
+    //     if pos >= len { return 0; }
+    //     let remove = del_len.min(len - pos);
+    //
+    //     self.move_gap(pos);
+    //
+    //     if cfg!(debug_assertions) {
+    //         self.data[
+    //             (self.gap_start+self.gap_len) as usize..(self.gap_start+self.gap_len) as usize + remove
+    //             ].fill(0);
+    //     }
+    //     self.gap_len += remove as u8;
+    //     remove
+    // }
+
+    #[inline]
+    unsafe fn slice_to_str(arr: &[u8]) -> &str {
         if cfg!(debug_assertions) {
-            self.data[
-                (self.gap_start+self.gap_len) as usize..(self.gap_start+self.gap_len) as usize + remove
-            ].fill(0);
+            std::str::from_utf8(arr).unwrap()
+        } else {
+            std::str::from_utf8_unchecked(arr)
         }
-        self.gap_len += remove as u8;
-        remove
     }
 
     pub fn start_as_str(&self) -> &str {
         unsafe {
-            std::str::from_utf8_unchecked(&self.data[0..self.gap_start as usize])
+            Self::slice_to_str(&self.data[0..self.gap_start as usize])
         }
     }
     pub fn end_as_str(&self) -> &str {
         unsafe {
-            std::str::from_utf8_unchecked(&self.data[(self.gap_start+self.gap_len) as usize..LEN])
+            Self::slice_to_str(&self.data[(self.gap_start+self.gap_len) as usize..LEN])
         }
+    }
+
+    pub fn count_bytes(&self, char_pos: usize) -> usize {
+        // TODO: I'd love to make this more efficient but I'm not sure how.
+        let start_char_len = count_chars(self.start_as_str());
+        if char_pos == start_char_len {
+            self.gap_start as usize
+        } else if char_pos < start_char_len {
+            str_get_byte_offset(self.start_as_str(), char_pos)
+        } else { // char_pos > start_char_len.
+            self.gap_start as usize + str_get_byte_offset(self.end_as_str(), char_pos - start_char_len)
+        }
+    }
+
+    /// Take the remaining contents in the gap buffer. Mark them as deleted, but return them.
+    /// This will leave those items non-zero, but that doesn't matter.
+    pub fn take_rest(&mut self) -> &str {
+        let last_idx = (self.gap_start+self.gap_len) as usize;
+        self.gap_len = LEN as u8 - self.gap_start;
+        unsafe { Self::slice_to_str(&self.data[last_idx..LEN]) }
     }
 }
 
@@ -146,11 +205,11 @@ impl<const LEN: usize> PartialEq for GapBuffer<LEN> {
 
 #[cfg(test)]
 mod test {
-    use gapbuffer::GapBuffer;
+    use crate::gapbuffer::GapBuffer;
 
     fn check_eq<const LEN: usize>(b: &GapBuffer<LEN>, s: &str) {
         assert_eq!(b.to_string(), s);
-        assert_eq!(b.len(), s.len());
+        assert_eq!(b.len_bytes(), s.len());
         assert_eq!(s.is_empty(), b.is_empty());
     }
 

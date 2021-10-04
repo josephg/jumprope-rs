@@ -7,5 +7,6 @@ extern crate rand;
 mod jumprope;
 mod gapbuffer;
 mod utils;
+mod iter;
 
-pub use jumprope::*;
+pub use crate::jumprope::*;

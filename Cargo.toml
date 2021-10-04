@@ -2,12 +2,13 @@
 name = "jumprope"
 version = "0.1.0"
 authors = ["Joseph Gentle <me@josephg.com>"]
+edition = "2018"
 
 [workspace]
 members = ["rope-wasm", "bench"]
 
 [dependencies]
-rand = "0.7" # rand 0.8 needs special features to support JS; which adds 4kb to the binary size.
+rand = { version = "0.7", features = ["small_rng"] } # rand 0.8 needs special features to support JS; which adds 4kb to the binary size.
 #getrandom = { version = "0.2.3", features = ["js"] }
 #rand = "0.8"
 
