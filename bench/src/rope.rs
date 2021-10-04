@@ -5,7 +5,7 @@
 //     PositionOutOfBounds,
 // }
 
-pub trait Rope {
+pub trait Rope: From<String> {
     const NAME: &'static str;
 
     fn new() -> Self;

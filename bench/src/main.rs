@@ -49,7 +49,7 @@ impl Rope for JumpRope {
         self.replace(pos..pos+del_len, ins_content);
     }
 
-    fn to_string(&self) -> String { self.to_string() }
+    fn to_string(&self) -> String { ToString::to_string(self) }
     
     // fn len(&self) -> usize { self.len() } // in bytes
     fn char_len(&self) -> usize { self.len_chars() } // in unicode values

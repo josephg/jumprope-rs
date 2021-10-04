@@ -579,6 +579,12 @@ impl<'a> From<&'a str> for JumpRope {
     }
 }
 
+impl From<String> for JumpRope {
+    fn from(str: String) -> Self {
+        JumpRope::new_from_str(&str)
+    }
+}
+
 impl PartialEq for JumpRope {
     // This is quite complicated. It would be cleaner to just write a bytes
     // iterator, then iterate over the bytes of both strings comparing along the
