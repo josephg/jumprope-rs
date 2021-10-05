@@ -18,19 +18,19 @@ XiRope is 20x slower than jumprope. I love the Xi stuff but their rope implement
 This code is based on an older [skiplist based C rope library](https://github.com/josephg/librope) I wrote several years ago as an excuse to play with skip lists. It has a few notable differences:
 
 - Instead of simply being implemented as a skiplist, jumprope is a skiplist where each leaf node contains a [Gap Buffer](https://en.wikipedia.org/wiki/Gap_buffer).
-- Jumprope is faster with real data. On real world data sets, jumprope is over 2x as fast. For example, in the [seph-blog1 dataset](https://github.com/josephg/crdt-benchmarks), jumprope processes edits at 36Mops/sec (compared to librope with 13.6Mops/sec, or ropey with 10Mops/sec).
+- Jumprope is faster with real data. (See table below)
 - Jumprope does not (currently) support wchar conversion present in librope. This is something that may change in time, especially given how useful it is in a wasm context.
 
-I've uploaded some benchmarks of the different algorithms [here](https://home.seph.codes/public/rope_bench/report/). Using the real user typing datasets found [in crdt-benchmarks](https://github.com/josephg/crdt-benchmarks), document processing performance is as follows:
+I've uploaded some benchmarks of the different algorithms [here](https://home.seph.codes/public/rope_bench/report/). Jumprope processes the datasets found [in crdt-benchmarks](https://github.com/josephg/crdt-benchmarks) faster than any other library I know of:
 
 | Dataset | Ropey | librope (C) | Jumprope |
 |---------|-------|-------------|----------|
-automerge-paper | 27.84 ms | 16.3 ms | 7.24 ms
-rustcode | 5.07 ms | 4.12 ms | 1.76 ms
-sveltecomponent | 2.53 ms | 1.63 ms | 0.64 ms
-seph-blog1 | 14.57 ms | 10.35 ms | 4.13 ms
+automerge-paper | 25.16 ms | 16.28 ms | 6.66 ms
+rustcode | 4.71 ms | 3.93 ms | 1.66 ms
+sveltecomponent | 2.31 ms | 1.59 ms | 0.59 ms
+seph-blog1 | 13.04 ms | 10.01 ms | 3.81 ms
 
-
+> Benchmarks run on a single core of a Ryzen 5800X
 
 # LICENSE
 
