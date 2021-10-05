@@ -63,7 +63,7 @@ impl Rope for AnRope {
     fn insert_at(&mut self, pos: usize, contents: &str) { *self = self.insert_str(pos, contents); }
     fn del_at(&mut self, pos: usize, len: usize) { self.delete(pos..pos+len); }
 
-    fn to_string(&self) -> String { std::string::ToString::to_string(self) }
+    fn to_string(&self) -> String { ToString::to_string(self) }
     
     // fn len(&self) -> usize { self.len() } // in bytes
     fn char_len(&self) -> usize { self.len() } // in unicode values
@@ -272,7 +272,7 @@ fn bench_ins_append(c: &mut Criterion) {
 
     group.bench_function("jumprope", ins_append::<JumpRope>);
     group.bench_function("ropey", ins_append::<RopeyRope>);
-    group.bench_function("anrope", ins_append::<AnRope>);
+    // group.bench_function("anrope", ins_append::<AnRope>);
     group.bench_function("xirope", ins_append::<XiRope>);
     group.bench_function("jumprope_c", ins_append::<CRope>);
     group.bench_function("raw_string", ins_append::<String>);
@@ -285,7 +285,7 @@ fn bench_ins_random(c: &mut Criterion) {
 
     group.bench_function("jumprope", ins_random::<JumpRope>);
     group.bench_function("ropey", ins_random::<RopeyRope>);
-    group.bench_function("anrope", ins_random::<AnRope>);
+    // group.bench_function("anrope", ins_random::<AnRope>);
     group.bench_function("xirope", ins_random::<XiRope>);
     group.bench_function("jumprope_c", ins_random::<CRope>);
     group.bench_function("raw_string", ins_random::<String>);
@@ -300,7 +300,7 @@ fn bench_stable_ins_del(c: &mut Criterion) {
         group.throughput(Throughput::Elements(*size));
         group.bench_with_input(BenchmarkId::new("jumprope", size), size, stable_ins_del::<JumpRope>);
         group.bench_with_input(BenchmarkId::new("ropey", size), size, stable_ins_del::<RopeyRope>);
-        group.bench_with_input(BenchmarkId::new("anrope", size), size, stable_ins_del::<AnRope>);
+        // group.bench_with_input(BenchmarkId::new("anrope", size), size, stable_ins_del::<AnRope>);
         group.bench_with_input(BenchmarkId::new("xirope", size), size, stable_ins_del::<XiRope>);
         group.bench_with_input(BenchmarkId::new("jumprope_c", size), size, stable_ins_del::<CRope>);
     }
@@ -352,9 +352,9 @@ fn realworld(c: &mut Criterion) {
 }
 
 criterion_group!(benches,
-    // bench_ins_append,
-    // bench_ins_random,
-    // bench_stable_ins_del,
+    bench_ins_append,
+    bench_ins_random,
+    bench_stable_ins_del,
     realworld
 );
 // criterion_group!(benches, bench_all);
