@@ -153,12 +153,15 @@ impl<const LEN: usize> GapBuffer<LEN> {
             if pos < gap_chars {
                 // Delete the bit from pos..gap.
                 // TODO: It would be better to count backwards here.
-                let pos_bytes = str_get_byte_offset(self.start_as_str(), pos) as u16;
-                rm_start_bytes = self.gap_start_bytes - pos_bytes;
+                // let pos_bytes = str_get_byte_offset(self.start_as_str(), pos) as u16;
+                // rm_start_bytes = self.gap_start_bytes - pos_bytes;
+                rm_start_bytes = chars_to_bytes_backwards(self.start_as_str(), gap_chars - pos) as u16;
+
                 del_len -= self.gap_start_chars as usize - pos;
                 self.gap_len += rm_start_bytes;
                 self.gap_start_chars = pos as u16;
-                self.gap_start_bytes = pos_bytes;
+                self.gap_start_bytes -= rm_start_bytes;
+                // self.gap_start_bytes = pos_bytes;
                 if del_len == 0 { return rm_start_bytes as usize; }
             }
 

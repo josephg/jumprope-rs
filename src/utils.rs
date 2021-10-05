@@ -16,3 +16,41 @@ pub(crate) fn str_byte_to_char_idx(s: &str, bytes: usize) -> usize {
 pub(crate) fn count_chars(s: &str) -> usize {
     str_byte_to_char_idx(s, s.len())
 }
+
+pub(crate) fn chars_to_bytes_backwards(s: &str, char_len: usize) -> usize {
+    if char_len == 0 { return 0; }
+
+    // Scan backwards, looking for utf8 start bytes (marked by 0b0x or 0b
+    let mut chars_remaining = char_len;
+    for (i, byte) in s.as_bytes().iter().rev().enumerate() {
+        if (*byte & 0b11_00_0000) != 0b10_00_0000 {
+            chars_remaining -= 1;
+            if chars_remaining == 0 { return i+1; }
+        }
+    }
+    panic!("Insufficient characters in string");
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::*;
+
+    fn check_counts(s: &str) {
+        let num_chars = s.chars().count();
+        assert_eq!(count_chars(s), num_chars);
+
+        for i in 0..=num_chars {
+            let byte_offset = str_get_byte_offset(s, i);
+            assert_eq!(count_chars(&s[..byte_offset]), i);
+
+            let end_offset = chars_to_bytes_backwards(s, num_chars - i);
+            assert_eq!(end_offset, s.len() - byte_offset);
+        }
+    }
+
+    #[test]
+    fn backwards_smoke_tests() {
+        check_counts("hi there");
+        check_counts("κό𝕐𝕆😘σμε");
+    }
+}
