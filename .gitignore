@@ -1,3 +1,9 @@
 target
 Cargo.lock
 .idea
+yarn.lock
+node_modules
+src/params.rs
+stats.md
+bench/*.json
+.*.swp
