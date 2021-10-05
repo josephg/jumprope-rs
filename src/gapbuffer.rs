@@ -7,9 +7,9 @@ use crate::utils::*;
 pub struct GapBuffer<const LEN: usize> {
     data: [u8; LEN],
 
-    pub(crate) gap_start_bytes: u8,
-    pub(crate) gap_start_chars: u8,
-    pub(crate) gap_len: u8,
+    pub(crate) gap_start_bytes: u16,
+    pub(crate) gap_start_chars: u16,
+    pub(crate) gap_len: u16,
 }
 
 #[inline]
@@ -27,7 +27,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
             data: [0; LEN],
             gap_start_bytes: 0,
             gap_start_chars: 0,
-            gap_len: LEN as u8,
+            gap_len: LEN as u16,
         }
     }
 
@@ -67,14 +67,14 @@ impl<const LEN: usize> GapBuffer<LEN> {
                 // move characters to the right.
                 let moved_chars = new_start..current_start;
                 let char_len = count_chars(unsafe { slice_to_str(&self.data[moved_chars.clone()]) });
-                self.gap_start_chars -= char_len as u8;
+                self.gap_start_chars -= char_len as u16;
 
                 self.data.copy_within(moved_chars, new_start + len);
             } else if current_start < new_start {
                 // Move characters to the left
                 let moved_chars = current_start+len..new_start+len;
                 let char_len = count_chars(unsafe { slice_to_str(&self.data[moved_chars.clone()]) });
-                self.gap_start_chars += char_len as u8;
+                self.gap_start_chars += char_len as u16;
 
                 self.data.copy_within(moved_chars, current_start);
             }
@@ -84,7 +84,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
                 self.data[new_start..new_start+len].fill(0);
             }
 
-            self.gap_start_bytes = new_start as u8;
+            self.gap_start_bytes = new_start as u16;
         }
     }
 
@@ -95,9 +95,9 @@ impl<const LEN: usize> GapBuffer<LEN> {
 
         let start = self.gap_start_bytes as usize;
         self.data[start..start+len].copy_from_slice(s.as_bytes());
-        self.gap_start_bytes += len as u8;
-        self.gap_start_chars += count_chars(s) as u8;
-        self.gap_len -= len as u8;
+        self.gap_start_bytes += len as u16;
+        self.gap_start_chars += count_chars(s) as u16;
+        self.gap_len -= len as u16;
     }
 
     pub fn try_insert(&mut self, byte_pos: usize, s: &str) -> Result<(), ()> {
@@ -119,7 +119,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
                 (self.gap_start_bytes +self.gap_len) as usize..(self.gap_start_bytes +self.gap_len) as usize + del_len
                 ].fill(0);
         }
-        self.gap_len += del_len as u8;
+        self.gap_len += del_len as u16;
     }
 
     // Returns the number of items actually removed.
@@ -153,11 +153,11 @@ impl<const LEN: usize> GapBuffer<LEN> {
             if pos < gap_chars {
                 // Delete the bit from pos..gap.
                 // TODO: It would be better to count backwards here.
-                let pos_bytes = str_get_byte_offset(self.start_as_str(), pos) as u8;
+                let pos_bytes = str_get_byte_offset(self.start_as_str(), pos) as u16;
                 rm_start_bytes = self.gap_start_bytes - pos_bytes;
                 del_len -= self.gap_start_chars as usize - pos;
                 self.gap_len += rm_start_bytes;
-                self.gap_start_chars = pos as u8;
+                self.gap_start_chars = pos as u16;
                 self.gap_start_bytes = pos_bytes;
                 if del_len == 0 { return rm_start_bytes as usize; }
             }
@@ -207,7 +207,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
     /// This will leave those items non-zero, but that doesn't matter.
     pub fn take_rest(&mut self) -> &str {
         let last_idx = (self.gap_start_bytes +self.gap_len) as usize;
-        self.gap_len = LEN as u8 - self.gap_start_bytes;
+        self.gap_len = LEN as u16 - self.gap_start_bytes;
         unsafe { slice_to_str(&self.data[last_idx..LEN]) }
     }
 

@@ -22,14 +22,14 @@ use crate::utils::*;
 //const NODE_SIZE: usize = 136;
 
 // The likelyhood (out of 256) a node will have height (n+1) instead of n
-const BIAS: u8 = 100;
+const BIAS: u8 = 65;
 
 // The rope will become less efficient after the string is 2 ^ ROPE_MAX_HEIGHT nodes.
 
 #[cfg(debug_assertions)]
 const NODE_STR_SIZE: usize = 10;
 #[cfg(not(debug_assertions))]
-const NODE_STR_SIZE: usize = 100;
+const NODE_STR_SIZE: usize = 380;
 
 const MAX_HEIGHT: usize = 20;//NODE_STR_SIZE / mem::size_of::<SkipEntry>();
 const MAX_HEIGHT_U8: u8 = MAX_HEIGHT as u8;
