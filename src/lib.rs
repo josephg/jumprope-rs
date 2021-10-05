@@ -8,5 +8,6 @@ mod jumprope;
 mod gapbuffer;
 mod utils;
 mod iter;
+// mod params;
 
 pub use crate::jumprope::*;

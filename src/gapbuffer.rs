@@ -10,6 +10,7 @@ pub struct GapBuffer<const LEN: usize> {
     pub(crate) gap_start_bytes: u16,
     pub(crate) gap_start_chars: u16,
     pub(crate) gap_len: u16,
+    all_ascii: bool,
 }
 
 #[inline]
@@ -28,6 +29,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
             gap_start_bytes: 0,
             gap_start_chars: 0,
             gap_len: LEN as u16,
+            all_ascii: true,
         }
     }
 
@@ -56,6 +58,17 @@ impl<const LEN: usize> GapBuffer<LEN> {
         self.gap_len as usize == LEN
     }
 
+    fn count_internal_chars(&self, s: &str) -> usize {
+        if self.all_ascii { s.len() } else { count_chars(s) }
+    }
+
+    fn int_str_get_byte_offset(&self, s: &str, char_pos: usize) -> usize {
+        if self.all_ascii { char_pos } else { str_get_byte_offset(s, char_pos) }
+    }
+    fn int_chars_to_bytes_backwards(&self, s: &str, char_len: usize) -> usize {
+        if self.all_ascii { char_len } else { chars_to_bytes_backwards(s, char_len) }
+    }
+
     pub fn move_gap(&mut self, new_start: usize) {
         let current_start = self.gap_start_bytes as usize;
 
@@ -66,14 +79,14 @@ impl<const LEN: usize> GapBuffer<LEN> {
             if new_start < current_start {
                 // move characters to the right.
                 let moved_chars = new_start..current_start;
-                let char_len = count_chars(unsafe { slice_to_str(&self.data[moved_chars.clone()]) });
+                let char_len = self.count_internal_chars(unsafe { slice_to_str(&self.data[moved_chars.clone()]) });
                 self.gap_start_chars -= char_len as u16;
 
                 self.data.copy_within(moved_chars, new_start + len);
             } else if current_start < new_start {
                 // Move characters to the left
                 let moved_chars = current_start+len..new_start+len;
-                let char_len = count_chars(unsafe { slice_to_str(&self.data[moved_chars.clone()]) });
+                let char_len = self.count_internal_chars(unsafe { slice_to_str(&self.data[moved_chars.clone()]) });
                 self.gap_start_chars += char_len as u16;
 
                 self.data.copy_within(moved_chars, current_start);
@@ -91,13 +104,16 @@ impl<const LEN: usize> GapBuffer<LEN> {
     /// Panics if there's no room.
     pub fn insert_in_gap(&mut self, s: &str) {
         let len = s.len();
+        let char_len = count_chars(s);
         assert!(len <= self.gap_len as usize);
 
         let start = self.gap_start_bytes as usize;
         self.data[start..start+len].copy_from_slice(s.as_bytes());
         self.gap_start_bytes += len as u16;
-        self.gap_start_chars += count_chars(s) as u16;
+        self.gap_start_chars += char_len as u16;
         self.gap_len -= len as u16;
+
+        if len != char_len { self.all_ascii = false; }
     }
 
     pub fn try_insert(&mut self, byte_pos: usize, s: &str) -> Result<(), ()> {
@@ -155,7 +171,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
                 // TODO: It would be better to count backwards here.
                 // let pos_bytes = str_get_byte_offset(self.start_as_str(), pos) as u16;
                 // rm_start_bytes = self.gap_start_bytes - pos_bytes;
-                rm_start_bytes = chars_to_bytes_backwards(self.start_as_str(), gap_chars - pos) as u16;
+                rm_start_bytes = self.int_chars_to_bytes_backwards(self.start_as_str(), gap_chars - pos) as u16;
 
                 del_len -= self.gap_start_chars as usize - pos;
                 self.gap_len += rm_start_bytes;
@@ -171,15 +187,15 @@ impl<const LEN: usize> GapBuffer<LEN> {
             // This is equivalent to self.count_bytes() (below), but for some reason manually
             // inlining it here results in both faster and smaller executables.
             let gap_bytes = if pos < gap_chars {
-                str_get_byte_offset(self.start_as_str(), pos)
+                self.int_str_get_byte_offset(self.start_as_str(), pos)
             } else {
-                str_get_byte_offset(self.end_as_str(), pos - gap_chars) + self.gap_start_bytes as usize
+                self.int_str_get_byte_offset(self.end_as_str(), pos - gap_chars) + self.gap_start_bytes as usize
             };
             self.move_gap(gap_bytes);
         }
 
         // At this point the gap is guaranteed to be directly after pos.
-        let rm_end_bytes = str_get_byte_offset(self.end_as_str(), del_len);
+        let rm_end_bytes = self.int_str_get_byte_offset(self.end_as_str(), del_len);
         self.remove_at_gap(rm_end_bytes);
         rm_start_bytes as usize + rm_end_bytes
     }
@@ -200,9 +216,9 @@ impl<const LEN: usize> GapBuffer<LEN> {
         if char_pos == start_char_len {
             self.gap_start_bytes as usize
         } else if char_pos < start_char_len {
-            str_get_byte_offset(self.start_as_str(), char_pos)
+            self.int_str_get_byte_offset(self.start_as_str(), char_pos)
         } else { // char_pos > start_char_len.
-            self.gap_start_bytes as usize + str_get_byte_offset(self.end_as_str(), char_pos - start_char_len)
+            self.gap_start_bytes as usize + self.int_str_get_byte_offset(self.end_as_str(), char_pos - start_char_len)
         }
     }
 

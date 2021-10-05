@@ -35,7 +35,7 @@ pub const XX_BIAS: u8 = 65;
 
 // const cmd = 'cargo build --release && sleep 3 && taskset 0x1 nice -10 cargo run --release -- --bench --measurement-time=3 -n realworld/JumpRope/automerge-paper'
 // const cmd = 'cargo build --release && taskset 0x1 nice -10 cargo run --release -- --bench --measurement-time=10 -n realworld/JumpRope/automerge-paper'
-const cmd = 'cargo build --release && taskset 0x1 nice -10 cargo run --release -- --bench --measurement-time=10 -n realworld/JumpRope'
+const cmd = 'cargo build --release && taskset 0x1 nice -10 cargo run --release -- --bench --measurement-time=20 -n realworld/JumpRope'
 const bench = () => {
   spawnSync(cmd, {
     shell: true,
@@ -67,7 +67,8 @@ const run = size => {
 // for (let s = 50; s <= 80; s += 5) {
 //   run(s)
 // }
-for (let s = 340; s <= 400; s += 8) {
+for (let s = 380; s <= 400; s += 4) {
+  // console.log(s)
   run(s)
 }
 // for (let s = 300; s <= 400; s += 20) {
