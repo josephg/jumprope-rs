@@ -373,6 +373,22 @@ impl JumpRope {
         // The insertion offset into the destination node.
         let offset: usize = cursor.0[0].skip_chars;
         let mut e = cursor.here_ptr();
+
+        // We might be able to insert the new data into the current node, depending on
+        // how big it is. We'll count the bytes, and also check that its valid utf8.
+        let num_inserted_bytes = contents.len();
+        let num_inserted_chars = count_chars(contents);
+
+        // Adding this short curcuit makes the code about 2% faster.
+        // if (*e).str.gap_start_chars as usize == offset && (*e).str.gap_len as usize >= num_inserted_bytes {
+        //     // Short circuit. If we can just insert all the content right here in the gap, do so.
+        //     (*e).str.insert_in_gap(contents);
+        //     cursor.update_offsets(self.head.height as usize, num_inserted_chars as isize);
+        //     cursor.move_within_node(self.head.height as usize, num_inserted_chars as isize);
+        //     self.num_bytes += num_inserted_bytes;
+        //     return;
+        // }
+
         if offset > 0 {
             assert!(offset <= (*e).nexts()[0].skip_chars);
             // This could be faster, but its not a big deal.
@@ -384,11 +400,6 @@ impl JumpRope {
             // let v: Vec<(usize, char)> = s.char_indices().collect();
             // println!("{:?}", v);
         }
-
-        // We might be able to insert the new data into the current node, depending on
-        // how big it is. We'll count the bytes, and also check that its valid utf8.
-        let num_inserted_bytes = contents.len();
-        let num_inserted_chars = count_chars(contents);
 
         // Can we insert into the current node?
         let current_len_bytes = (*e).str.len_bytes();
@@ -737,6 +748,7 @@ impl JumpRope {
                 assert!(!n.str.is_empty() || std::ptr::eq(n, &self.head));
                 assert!(n.height <= MAX_HEIGHT_U8);
                 assert!(n.height >= 1);
+                n.str.check();
 
                 assert_eq!(count_chars(n.as_str_1()) + count_chars(n.as_str_2()), n.num_chars());
                 for (i, entry) in iter[0..n.height as usize].iter_mut().enumerate() {

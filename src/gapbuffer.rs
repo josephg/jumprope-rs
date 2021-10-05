@@ -7,15 +7,26 @@ use crate::utils::*;
 pub struct GapBuffer<const LEN: usize> {
     data: [u8; LEN],
 
-    gap_start: u8,
-    gap_len: u8,
+    pub(crate) gap_start_bytes: u8,
+    pub(crate) gap_start_chars: u8,
+    pub(crate) gap_len: u8,
+}
+
+#[inline]
+unsafe fn slice_to_str(arr: &[u8]) -> &str {
+    if cfg!(debug_assertions) {
+        std::str::from_utf8(arr).unwrap()
+    } else {
+        std::str::from_utf8_unchecked(arr)
+    }
 }
 
 impl<const LEN: usize> GapBuffer<LEN> {
     pub fn new() -> Self {
         Self {
             data: [0; LEN],
-            gap_start: 0,
+            gap_start_bytes: 0,
+            gap_start_chars: 0,
             gap_len: LEN as u8,
         }
     }
@@ -36,17 +47,17 @@ impl<const LEN: usize> GapBuffer<LEN> {
         LEN - self.gap_len as usize
     }
 
-    #[allow(unused)]
-    pub fn char_len(&self) -> usize {
-        count_chars(self.start_as_str()) + count_chars(self.end_as_str())
-    }
+    // #[allow(unused)]
+    // pub fn char_len(&self) -> usize {
+    //     count_chars(self.start_as_str()) + count_chars(self.end_as_str())
+    // }
 
     pub fn is_empty(&self) -> bool {
         self.gap_len as usize == LEN
     }
 
     pub fn move_gap(&mut self, new_start: usize) {
-        let current_start = self.gap_start as usize;
+        let current_start = self.gap_start_bytes as usize;
 
         if new_start != current_start {
             let len = self.gap_len as usize;
@@ -54,10 +65,18 @@ impl<const LEN: usize> GapBuffer<LEN> {
 
             if new_start < current_start {
                 // move characters to the right.
-                self.data.copy_within(new_start..current_start, new_start + len);
+                let moved_chars = new_start..current_start;
+                let char_len = count_chars(unsafe { slice_to_str(&self.data[moved_chars.clone()]) });
+                self.gap_start_chars -= char_len as u8;
+
+                self.data.copy_within(moved_chars, new_start + len);
             } else if current_start < new_start {
                 // Move characters to the left
-                self.data.copy_within(current_start+len..new_start+len, current_start);
+                let moved_chars = current_start+len..new_start+len;
+                let char_len = count_chars(unsafe { slice_to_str(&self.data[moved_chars.clone()]) });
+                self.gap_start_chars += char_len as u8;
+
+                self.data.copy_within(moved_chars, current_start);
             }
 
             if cfg!(debug_assertions) {
@@ -65,21 +84,30 @@ impl<const LEN: usize> GapBuffer<LEN> {
                 self.data[new_start..new_start+len].fill(0);
             }
 
-            self.gap_start = new_start as u8;
+            self.gap_start_bytes = new_start as u8;
         }
     }
 
-    pub fn try_insert(&mut self, pos: usize, s: &str) -> Result<(), ()> {
+    /// Panics if there's no room.
+    pub fn insert_in_gap(&mut self, s: &str) {
+        let len = s.len();
+        assert!(len <= self.gap_len as usize);
+
+        let start = self.gap_start_bytes as usize;
+        self.data[start..start+len].copy_from_slice(s.as_bytes());
+        self.gap_start_bytes += len as u8;
+        self.gap_start_chars += count_chars(s) as u8;
+        self.gap_len -= len as u8;
+    }
+
+    pub fn try_insert(&mut self, byte_pos: usize, s: &str) -> Result<(), ()> {
         let len = s.len();
         if len > self.gap_len as usize {
             // No space in this node!
             Result::Err(())
         } else {
-            self.move_gap(pos);
-            let start = self.gap_start as usize;
-            self.data[start..start+len].copy_from_slice(s.as_bytes());
-            self.gap_start += len as u8;
-            self.gap_len -= len as u8;
+            self.move_gap(byte_pos);
+            self.insert_in_gap(s);
             Result::Ok(())
         }
     }
@@ -87,7 +115,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
     pub fn remove_at_gap(&mut self, del_len: usize) {
         if cfg!(debug_assertions) {
             self.data[
-                (self.gap_start+self.gap_len) as usize..(self.gap_start+self.gap_len) as usize + del_len
+                (self.gap_start_bytes +self.gap_len) as usize..(self.gap_start_bytes +self.gap_len) as usize + del_len
                 ].fill(0);
         }
         self.gap_len += del_len as u8;
@@ -107,44 +135,39 @@ impl<const LEN: usize> GapBuffer<LEN> {
         del_len
     }
 
-    #[inline]
-    unsafe fn slice_to_str(arr: &[u8]) -> &str {
-        if cfg!(debug_assertions) {
-            std::str::from_utf8(arr).unwrap()
-        } else {
-            std::str::from_utf8_unchecked(arr)
-        }
-    }
-
     pub fn start_as_str(&self) -> &str {
         unsafe {
-            Self::slice_to_str(&self.data[0..self.gap_start as usize])
+            slice_to_str(&self.data[0..self.gap_start_bytes as usize])
         }
     }
     pub fn end_as_str(&self) -> &str {
         unsafe {
-            Self::slice_to_str(&self.data[(self.gap_start+self.gap_len) as usize..LEN])
+            slice_to_str(&self.data[(self.gap_start_bytes +self.gap_len) as usize..LEN])
         }
     }
 
     pub fn count_bytes(&self, char_pos: usize) -> usize {
-        // TODO: I'd love to make this more efficient but I'm not sure how.
-        let start_char_len = count_chars(self.start_as_str());
+        let start_char_len = self.gap_start_chars as usize;
         if char_pos == start_char_len {
-            self.gap_start as usize
+            self.gap_start_bytes as usize
         } else if char_pos < start_char_len {
             str_get_byte_offset(self.start_as_str(), char_pos)
         } else { // char_pos > start_char_len.
-            self.gap_start as usize + str_get_byte_offset(self.end_as_str(), char_pos - start_char_len)
+            self.gap_start_bytes as usize + str_get_byte_offset(self.end_as_str(), char_pos - start_char_len)
         }
     }
 
     /// Take the remaining contents in the gap buffer. Mark them as deleted, but return them.
     /// This will leave those items non-zero, but that doesn't matter.
     pub fn take_rest(&mut self) -> &str {
-        let last_idx = (self.gap_start+self.gap_len) as usize;
-        self.gap_len = LEN as u8 - self.gap_start;
-        unsafe { Self::slice_to_str(&self.data[last_idx..LEN]) }
+        let last_idx = (self.gap_start_bytes +self.gap_len) as usize;
+        self.gap_len = LEN as u8 - self.gap_start_bytes;
+        unsafe { slice_to_str(&self.data[last_idx..LEN]) }
+    }
+
+    pub(crate) fn check(&self) {
+        let char_len = count_chars(unsafe { slice_to_str(&self.data[..self.gap_start_bytes as usize]) });
+        assert_eq!(char_len, self.gap_start_chars as usize);
     }
 }
 
@@ -165,14 +188,14 @@ impl<const LEN: usize> PartialEq for GapBuffer<LEN> {
         // - Before our gap
         // - The inter-gap part
         // - The last, common part.
-        let (a, b) = if self.gap_start < other.gap_start {
+        let (a, b) = if self.gap_start_bytes < other.gap_start_bytes {
             (self, other)
         } else {
             (other, self)
         };
         // a has its gap first (or the gaps are at the same time).
-        let a_start = a.gap_start as usize;
-        let b_start = b.gap_start as usize;
+        let a_start = a.gap_start_bytes as usize;
+        let b_start = b.gap_start_bytes as usize;
         let gap_len = a.gap_len as usize;
 
         // Section before the gaps
