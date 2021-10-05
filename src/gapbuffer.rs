@@ -114,6 +114,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
 
     pub fn remove_at_gap(&mut self, del_len: usize) {
         if cfg!(debug_assertions) {
+            // Zero out the deleted bytes in debug mode.
             self.data[
                 (self.gap_start_bytes +self.gap_len) as usize..(self.gap_start_bytes +self.gap_len) as usize + del_len
                 ].fill(0);
@@ -133,6 +134,51 @@ impl<const LEN: usize> GapBuffer<LEN> {
 
         self.remove_at_gap(del_len);
         del_len
+    }
+
+    pub fn remove_chars(&mut self, pos: usize, mut del_len: usize) -> usize {
+        // This function is longer than it needs to be; but having it be a bit longer makes the
+        // code faster. I think the trade-off is worth it.
+        // self.move_gap(self.count_bytes(pos));
+        // let removed_bytes = str_get_byte_offset(s.end_as_str(), del_len);
+        // self.remove_at_gap(removed_bytes);
+        // removed_bytes
+
+        if del_len == 0 { return 0; }
+        debug_assert!(del_len <= self.len_bytes() - pos);
+        let mut rm_start_bytes = 0;
+
+        let gap_chars = self.gap_start_chars as usize;
+        if pos <= gap_chars && pos+del_len >= gap_chars {
+            if pos < gap_chars {
+                // Delete the bit from pos..gap.
+                // TODO: It would be better to count backwards here.
+                let pos_bytes = str_get_byte_offset(self.start_as_str(), pos) as u8;
+                rm_start_bytes = self.gap_start_bytes - pos_bytes;
+                del_len -= self.gap_start_chars as usize - pos;
+                self.gap_len += rm_start_bytes;
+                self.gap_start_chars = pos as u8;
+                self.gap_start_bytes = pos_bytes;
+                if del_len == 0 { return rm_start_bytes as usize; }
+            }
+
+            debug_assert!(del_len > 0);
+            debug_assert!(pos >= self.gap_start_chars as usize);
+        } else {
+            // This is equivalent to self.count_bytes() (below), but for some reason manually
+            // inlining it here results in both faster and smaller executables.
+            let gap_bytes = if pos < gap_chars {
+                str_get_byte_offset(self.start_as_str(), pos)
+            } else {
+                str_get_byte_offset(self.end_as_str(), pos - gap_chars) + self.gap_start_bytes as usize
+            };
+            self.move_gap(gap_bytes);
+        }
+
+        // At this point the gap is guaranteed to be directly after pos.
+        let rm_end_bytes = str_get_byte_offset(self.end_as_str(), del_len);
+        self.remove_at_gap(rm_end_bytes);
+        rm_start_bytes as usize + rm_end_bytes
     }
 
     pub fn start_as_str(&self) -> &str {

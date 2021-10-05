@@ -27,4 +27,4 @@ codegen-units = 1
 
 [profile.release.package.rope-wasm]
 #opt-level = "s"
-opt-level = 3
+opt-level = 2

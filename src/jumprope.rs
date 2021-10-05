@@ -527,15 +527,8 @@ impl JumpRope {
             let height = (*node).height as usize;
             if removed < num_chars || std::ptr::eq(node, &self.head) {
                 // Just trim the node down.
-                // let s = (*e).as_str();
                 let s = &mut (*node).str;
-
-                // TODO: Consider making a remove_chars in GapBuffer.
-                let leading_bytes = s.count_bytes(offset);
-                s.move_gap(leading_bytes);
-                let removed_bytes = str_get_byte_offset(s.end_as_str(), removed);
-                s.remove_at_gap(removed_bytes);
-
+                let removed_bytes = s.remove_chars(offset, removed);
                 self.num_bytes -= removed_bytes;
 
                 for s in (*node).nexts_mut() {
