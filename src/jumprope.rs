@@ -379,15 +379,15 @@ impl JumpRope {
         let num_inserted_bytes = contents.len();
         let num_inserted_chars = count_chars(contents);
 
-        // Adding this short curcuit makes the code about 2% faster.
-        // if (*e).str.gap_start_chars as usize == offset && (*e).str.gap_len as usize >= num_inserted_bytes {
-        //     // Short circuit. If we can just insert all the content right here in the gap, do so.
-        //     (*e).str.insert_in_gap(contents);
-        //     cursor.update_offsets(self.head.height as usize, num_inserted_chars as isize);
-        //     cursor.move_within_node(self.head.height as usize, num_inserted_chars as isize);
-        //     self.num_bytes += num_inserted_bytes;
-        //     return;
-        // }
+        // Adding this short curcuit makes the code about 2% faster for 1% more code
+        if (*e).str.gap_start_chars as usize == offset && (*e).str.gap_len as usize >= num_inserted_bytes {
+            // Short circuit. If we can just insert all the content right here in the gap, do so.
+            (*e).str.insert_in_gap(contents);
+            cursor.update_offsets(self.head.height as usize, num_inserted_chars as isize);
+            cursor.move_within_node(self.head.height as usize, num_inserted_chars as isize);
+            self.num_bytes += num_inserted_bytes;
+            return;
+        }
 
         if offset > 0 {
             assert!(offset <= (*e).nexts()[0].skip_chars);
