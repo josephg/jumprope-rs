@@ -25,12 +25,12 @@ impl Rope {
 
     #[wasm_bindgen]
     pub fn insert(&mut self, pos: usize, content: &str) {
-        self.0.insert_at(pos, content);
+        self.0.insert(pos, content);
     }
 
     #[wasm_bindgen]
     pub fn delete(&mut self, pos: usize, del_len: usize) {
-        self.0.del_at(pos, del_len);
+        self.0.remove(pos, del_len);
     }
 
     #[wasm_bindgen]

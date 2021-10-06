@@ -63,10 +63,10 @@ impl<const LEN: usize> GapBuffer<LEN> {
     }
 
     fn int_str_get_byte_offset(&self, s: &str, char_pos: usize) -> usize {
-        if self.all_ascii { char_pos } else { str_get_byte_offset(s, char_pos) }
+        if self.all_ascii { char_pos } else { str_chars_to_bytes(s, char_pos) }
     }
     fn int_chars_to_bytes_backwards(&self, s: &str, char_len: usize) -> usize {
-        if self.all_ascii { char_len } else { chars_to_bytes_backwards(s, char_len) }
+        if self.all_ascii { char_len } else { str_chars_to_bytes_rev(s, char_len) }
     }
 
     pub fn move_gap(&mut self, new_start: usize) {

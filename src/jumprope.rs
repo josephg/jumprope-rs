@@ -12,6 +12,7 @@
 use std::{mem, ptr, str};
 use std::alloc::{alloc, dealloc, Layout};
 use std::cmp::min;
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::Range;
 use rand::prelude::*;
 use crate::gapbuffer::GapBuffer;
@@ -185,7 +186,7 @@ impl Node {
         unsafe { &mut *self.nexts.as_mut_ptr() }
     }
 
-    fn num_chars(&self) -> usize {
+    pub(super) fn num_chars(&self) -> usize {
         self.first_next().skip_chars
     }
 
@@ -196,7 +197,7 @@ impl Node {
 }
 
 #[derive(Debug, Clone)]
-struct RopeCursor([SkipEntry; MAX_HEIGHT+1]);
+pub(crate) struct RopeCursor([SkipEntry; MAX_HEIGHT+1]);
 
 impl RopeCursor {
     fn update_offsets(&mut self, height: usize, by: isize) {
@@ -218,21 +219,23 @@ impl RopeCursor {
         }
     }
 
-    fn here_ptr(&self) -> *mut Node {
+    pub(crate) fn here_ptr(&self) -> *mut Node {
         self.0[0].node
     }
 
-    fn global_char_pos(&self, head_height: u8) -> usize {
+    pub(crate) fn global_char_pos(&self, head_height: u8) -> usize {
         self.0[head_height as usize - 1].skip_chars
     }
 
-    fn local_char_pos(&self) -> usize {
+    pub(crate) fn local_char_pos(&self) -> usize {
         self.0[0].skip_chars
     }
 }
 
-
+/// A rope is a "rich string" data structure for storing fancy strings, like the contents of a
+/// text editor. See module level documentation for more information.
 impl JumpRope {
+    /// Creates a new, empty rope.
     pub fn new() -> Self {
         JumpRope {
             rng: SmallRng::seed_from_u64(123),
@@ -257,10 +260,28 @@ impl JumpRope {
 
     fn new_from_str(s: &str) -> Self {
         let mut rope = Self::new();
-        rope.insert_at(0, s);
+        rope.insert(0, s);
         rope
     }
 
+    /// Return the length of the rope in unicode characters. Note this is not the same as either
+    /// the number of bytes the characters take, or the number of grapheme clusters in the string.
+    ///
+    /// This method returns the length in constant-time (*O(1)*).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use jumprope::*;
+    /// assert_eq!("↯".len(), 3);
+    ///
+    /// let rope = JumpRope::from("↯");
+    /// assert_eq!(rope.len_chars(), 1);
+    ///
+    /// // The unicode snowman grapheme cluster needs 2 unicode characters.
+    /// let snowman = JumpRope::from("☃️");
+    /// assert_eq!(snowman.len_chars(), 2);
+    /// ```
     pub fn len_chars(&self) -> usize {
         self.head.nexts()[self.head.height as usize - 1].skip_chars
     }
@@ -268,7 +289,7 @@ impl JumpRope {
     // Internal function for navigating to a particular character offset in the rope.  The function
     // returns the list of nodes which point past the position, as well as offsets of how far into
     // their character lists the specified characters are.
-    fn cursor_at_char(&self, char_pos: usize) -> RopeCursor {
+    pub(crate) fn cursor_at_char(&self, char_pos: usize) -> RopeCursor {
         assert!(char_pos <= self.len_chars());
 
         let mut e: *const Node = &self.head;
@@ -559,6 +580,18 @@ impl JumpRope {
             length -= removed;
         }
     }
+
+    fn eq_str(&self, mut other: &str) -> bool {
+        if self.len() != other.len() { return false; }
+
+        for s in self.chunks().strings() {
+            let (start, rem) = other.split_at(s.len());
+            if start != s { return false; }
+            other = rem;
+        }
+
+        true
+    }
 }
 
 impl Default for JumpRope {
@@ -580,7 +613,7 @@ impl Drop for JumpRope {
     }
 }
 
-impl<'a> From<&'a str> for JumpRope {
+impl From<&str> for JumpRope {
     fn from(str: &str) -> Self {
         JumpRope::new_from_str(str)
     }
@@ -608,12 +641,12 @@ impl PartialEq for JumpRope {
             return false
         }
 
-        let mut other_iter = other.content_iter();
+        let mut other_iter = other.chunks().strings();
 
         // let mut os = other_iter.next();
         let mut os = "";
 
-        for mut s in self.content_iter() {
+        for mut s in self.chunks().strings() {
             // Walk s.len() bytes through the other rope
             while !s.is_empty() {
                 if os.is_empty() {
@@ -639,16 +672,31 @@ impl PartialEq for JumpRope {
 }
 impl Eq for JumpRope {}
 
-impl ToString for JumpRope {
-    fn to_string(&self) -> String {
-        let mut content = String::with_capacity(self.num_bytes);
+impl Debug for JumpRope {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_list()
+            .entries(self.chunks().strings())
+            .finish()
+    }
+}
 
-        for node in self.node_iter() {
-            content.push_str(node.as_str_1());
-            content.push_str(node.as_str_2());
+impl Display for JumpRope {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        for (s, _) in self.chunks() {
+            f.write_str(s)?;
         }
+        Ok(())
+    }
+}
 
-        content
+impl PartialEq<str> for JumpRope {
+    fn eq(&self, other: &str) -> bool {
+        self.eq_str(other)
+    }
+}
+impl PartialEq<&str> for JumpRope {
+    fn eq(&self, other: &&str) -> bool {
+        self.eq_str(*other)
     }
 }
 
@@ -678,7 +726,20 @@ impl Clone for JumpRope {
 }
 
 impl JumpRope {
-    pub fn insert_at(&mut self, mut pos: usize, contents: &str) {
+    /// Insert new content into the rope. The content is inserted at the specified unicode character
+    /// offset, which is different from a byte offset for non-ASCII characters.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use jumprope::*;
+    /// let mut rope = JumpRope::from("--");
+    /// rope.insert(1, "hi there");
+    /// assert_eq!(rope.to_string(), "-hi there-");
+    /// ```
+    ///
+    /// If the position names a location past the end of the rope, it is truncated.
+    pub fn insert(&mut self, mut pos: usize, contents: &str) {
         if contents.is_empty() { return; }
         pos = std::cmp::min(pos, self.len_chars());
 
@@ -689,16 +750,40 @@ impl JumpRope {
         // dbg!(&cursor.0[..self.head.height as usize]);
     }
 
-    pub fn del_at(&mut self, pos: usize, length: usize) {
-        let length = usize::min(length, self.len_chars() - pos);
-        if length == 0 { return; }
+    /// Delete a span of unicode characters from the rope. The span is specified in unicode
+    /// characters, not bytes.
+    ///
+    /// Any attempt to delete past the end of the rope will be silently ignored.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use jumprope::*;
+    /// let mut rope = JumpRope::from("Whoa dawg!");
+    /// rope.remove(4..9); // delete " dawg"
+    /// assert_eq!(rope.to_string(), "Whoa!");
+    /// ```
+    pub fn remove(&mut self, mut range: Range<usize>) {
+        range.end = range.end.min(self.len_chars());
+        if range.start >= range.end { return; }
 
-        let mut cursor = self.cursor_at_char(pos);
-        unsafe { self.del_at_cursor(&mut cursor, length); }
+        let mut cursor = self.cursor_at_char(range.start);
+        unsafe { self.del_at_cursor(&mut cursor, range.end - range.start); }
 
-        debug_assert_eq!(cursor.global_char_pos(self.head.height), pos);
+        debug_assert_eq!(cursor.global_char_pos(self.head.height), range.start);
     }
 
+    /// Replace the specified range with new content. This is equivalent to calling
+    /// [`remove`](Self::remove) followed by [`insert`](Self::insert), but it is simpler and faster.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use jumprope::*;
+    /// let mut rope = JumpRope::from("Hi Mike!");
+    /// rope.replace(3..7, "Duane"); // replace "Mike" with "Duane"
+    /// assert_eq!(rope.to_string(), "Hi Duane!");
+    /// ```
     pub fn replace(&mut self, range: Range<usize>, content: &str) {
         let len = self.len_chars();
         let pos = usize::min(range.start, len);
@@ -715,7 +800,26 @@ impl JumpRope {
         debug_assert_eq!(cursor.global_char_pos(self.head.height), pos + count_chars(content));
     }
 
+    /// Get the number of bytes used for the UTF8 representation of the rope. This will always match
+    /// the .len() property of the equivalent String.
+    ///
+    /// Note: This is only useful in specific situations - like preparing a byte buffer for saving
+    /// or sending over the internet. In many cases it is preferable to use
+    /// [`len_chars`](Self::len_chars).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use jumprope::*;
+    /// let str = "κόσμε"; // "Cosmos" in ancient greek
+    /// assert_eq!(str.len(), 11); // 11 bytes over the wire
+    ///
+    /// let rope = JumpRope::from(str);
+    /// assert_eq!(rope.len(), str.len());
+    /// ```
     pub fn len(&self) -> usize { self.num_bytes }
+
+    /// Returns `true` if the rope contains no elements.
     pub fn is_empty(&self) -> bool { self.num_bytes == 0 }
 
     pub fn check(&self) {

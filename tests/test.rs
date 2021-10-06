@@ -57,7 +57,7 @@ mod test {
         let mut r = JumpRope::new();
         check(&r, "");
 
-        r.insert_at(0, "");
+        r.insert(0, "");
         check(&r, "");
     }
 
@@ -65,16 +65,16 @@ mod test {
     fn insert_at_location() {
         let mut r = JumpRope::new();
 
-        r.insert_at(0, "AAA");
+        r.insert(0, "AAA");
         check(&r, "AAA");
 
-        r.insert_at(0, "BBB");
+        r.insert(0, "BBB");
         check(&r, "BBBAAA");
 
-        r.insert_at(6, "CCC");
+        r.insert(6, "CCC");
         check(&r, "BBBAAACCC");
 
-        r.insert_at(5, "DDD");
+        r.insert(5, "DDD");
         check(&r, "BBBAADDDACCC");
     }
 
@@ -85,7 +85,7 @@ mod test {
 
         let mut r = JumpRope::from("κόσμε");
         check(&r, "κόσμε");
-        r.insert_at(2, "𝕐𝕆😘");
+        r.insert(2, "𝕐𝕆😘");
         check(&r, "κό𝕐𝕆😘σμε");
     }
 
@@ -94,19 +94,19 @@ mod test {
         let mut r = JumpRope::from("012345678");
         check(&r, "012345678");
 
-        r.del_at(8, 1);
+        r.remove(8..9);
         check(&r, "01234567");
 
-        r.del_at(0, 1);
+        r.remove(0..1);
         check(&r, "1234567");
 
-        r.del_at(5, 1);
+        r.remove(5..6);
         check(&r, "123457");
         
-        r.del_at(5, 1);
+        r.remove(5..6);
         check(&r, "12345");
         
-        r.del_at(0, 5);
+        r.remove(0..5);
         check(&r, "");
     }
 
@@ -114,11 +114,11 @@ mod test {
     fn del_past_end_of_string() {
         let mut r = JumpRope::new();
 
-        r.del_at(0, 100);
+        r.remove(0..100);
         check(&r, "");
 
-        r.insert_at(0, "hi there");
-        r.del_at(3, 10);
+        r.insert(0, "hi there");
+        r.remove(3..13);
         check(&r, "hi ");
     }
 
@@ -131,7 +131,7 @@ mod test {
         check(&r, s.as_str());
 
         // Delete everything but the first and last characters
-        r.del_at(1, len - 2);
+        r.remove(1..len - 1);
         let expect = format!("{}{}", s.as_bytes()[0] as char, s.as_bytes()[len-1] as char);
         check(&r, expect.as_str());
     }
@@ -208,14 +208,14 @@ mod test {
                 let pos = rng.gen_range(0..len+1);
                 // Sometimes generate strings longer than a single node to stress everything.
                 let text = random_unicode_string(rng.gen_range(0..20));
-                r.insert_at(pos, text.as_str());
+                r.insert(pos, text.as_str());
                 string_insert_at(&mut s, pos, text.as_str());
             } else {
                 // Delete
                 let pos = rng.gen_range(0..len);
                 let dlen = min(rng.gen_range(0..10), len - pos);
 
-                r.del_at(pos, dlen);
+                r.remove(pos..pos+dlen);
                 string_del_at(&mut s, pos, dlen);
             }
         }

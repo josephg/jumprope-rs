@@ -43,8 +43,8 @@ impl Rope for JumpRope {
 
     fn new() -> Self { JumpRope::new() }
 
-    fn insert_at(&mut self, pos: usize, contents: &str) { self.insert_at(pos, contents); }
-    fn del_at(&mut self, pos: usize, len: usize) { self.del_at(pos, len); }
+    fn insert_at(&mut self, pos: usize, contents: &str) { self.insert(pos, contents); }
+    fn del_at(&mut self, pos: usize, len: usize) { self.remove(pos, len); }
     fn edit_at(&mut self, pos: usize, del_len: usize, ins_content: &str) {
         self.replace(pos..pos+del_len, ins_content);
     }

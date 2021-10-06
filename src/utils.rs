@@ -1,6 +1,6 @@
 
 // Get the byte offset after char_pos utf8 characters
-pub(crate) fn str_get_byte_offset(s: &str, char_pos: usize) -> usize {
+pub(crate) fn str_chars_to_bytes(s: &str, char_pos: usize) -> usize {
     // s.char_indices().nth(char_pos).map_or_else(
     //     || s.len(),
     //     |(i, _)| i
@@ -9,15 +9,15 @@ pub(crate) fn str_get_byte_offset(s: &str, char_pos: usize) -> usize {
     ropey::str_utils::char_to_byte_idx(s, char_pos)
 }
 
-pub(crate) fn str_byte_to_char_idx(s: &str, bytes: usize) -> usize {
+pub(crate) fn str_bytes_to_chars(s: &str, bytes: usize) -> usize {
     ropey::str_utils::byte_to_char_idx(s, bytes)
 }
 
 pub(crate) fn count_chars(s: &str) -> usize {
-    str_byte_to_char_idx(s, s.len())
+    str_bytes_to_chars(s, s.len())
 }
 
-pub(crate) fn chars_to_bytes_backwards(s: &str, char_len: usize) -> usize {
+pub(crate) fn str_chars_to_bytes_rev(s: &str, char_len: usize) -> usize {
     if char_len == 0 { return 0; }
 
     // Scan backwards, looking for utf8 start bytes (marked by 0b0x or 0b
@@ -40,10 +40,10 @@ mod tests {
         assert_eq!(count_chars(s), num_chars);
 
         for i in 0..=num_chars {
-            let byte_offset = str_get_byte_offset(s, i);
+            let byte_offset = str_chars_to_bytes(s, i);
             assert_eq!(count_chars(&s[..byte_offset]), i);
 
-            let end_offset = chars_to_bytes_backwards(s, num_chars - i);
+            let end_offset = str_chars_to_bytes_rev(s, num_chars - i);
             assert_eq!(end_offset, s.len() - byte_offset);
         }
     }

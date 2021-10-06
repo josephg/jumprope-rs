@@ -13,6 +13,10 @@ This library is similar to [ropey](https://crates.io/crates/ropey), which has mo
 
 XiRope is 20x slower than jumprope. I love the Xi stuff but their rope implementation is poorly optimized.
 
+[API documentation](https://docs.rs/jumprope/)
+
+[Jumprope on crates.io](https://crates.io/crates/jumprope)
+
 ---
 
 This code is based on an older [skiplist based C rope library](https://github.com/josephg/librope) I wrote several years ago as an excuse to play with skip lists. It has a few notable differences:
