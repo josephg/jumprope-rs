@@ -44,7 +44,7 @@ impl Rope for JumpRope {
     fn new() -> Self { JumpRope::new() }
 
     fn insert_at(&mut self, pos: usize, contents: &str) { self.insert(pos, contents); }
-    fn del_at(&mut self, pos: usize, len: usize) { self.remove(pos, len); }
+    fn del_at(&mut self, pos: usize, len: usize) { self.remove(pos..pos+len); }
     fn edit_at(&mut self, pos: usize, del_len: usize, ins_content: &str) {
         self.replace(pos..pos+del_len, ins_content);
     }
@@ -61,7 +61,7 @@ impl Rope for AnRope {
     fn new() -> Self { AnRope::new() }
 
     fn insert_at(&mut self, pos: usize, contents: &str) { *self = self.insert_str(pos, contents); }
-    fn del_at(&mut self, pos: usize, len: usize) { self.delete(pos..pos+len); }
+    fn del_at(&mut self, pos: usize, len: usize) { *self = self.delete(pos..pos+len); }
 
     fn to_string(&self) -> String { ToString::to_string(self) }
     
@@ -321,6 +321,13 @@ fn realworld(c: &mut Criterion) {
         let test_data = load_named_data(name);
         group.throughput(Throughput::Elements(test_data.len() as u64));
 
+        let mut all_ascii = true;
+        for txn in &test_data.txns {
+            for TestPatch(_pos, _del, ins) in &txn.patches {
+                if ins.chars().count() != ins.len() { all_ascii = false; }
+            }
+        }
+
         fn x<R: Rope>(group: &mut BenchmarkGroup<WallTime>, name: &str, test_data: &TestData) {
             group.bench_function(BenchmarkId::new(R::NAME, name), |b| {
                 b.iter(|| {
@@ -340,11 +347,16 @@ fn realworld(c: &mut Criterion) {
         x::<JumpRope>(&mut group, name, &test_data);
         x::<CRope>(&mut group, name, &test_data);
 
-        // These two crash on non-ascii characters.
-        // x::<XiRope>(&mut group, name, &test_data);
-        // x::<AnRope>(&mut group, name, &test_data);
+        // These two crash on non-ascii characters for some reason.
+        if all_ascii {
+            // Extremely slow.
+            x::<XiRope>(&mut group, name, &test_data);
 
-        // This takes too long to run.
+            // Crashes.
+            // x::<AnRope>(&mut group, name, &test_data);
+        }
+
+        // This takes a long time to run.
         // x::<String>(&mut group, name, &test_data);
 
         group.finish();

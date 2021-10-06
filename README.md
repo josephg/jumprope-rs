@@ -11,8 +11,6 @@ Unlike traditional strings:
 
 This library is similar to [ropey](https://crates.io/crates/ropey), which has more features and is more mature. However, ropey is about 3x slower than jumprope when processing real editing operations (see below) and compiles to a wasm bundle thats over twice as large. (Ropey is 30kb brotli compressed, vs 12kb for jumprope).
 
-XiRope is 20x slower than jumprope. I love the Xi stuff but their rope implementation is poorly optimized.
-
 [API documentation](https://docs.rs/jumprope/)
 
 [Jumprope on crates.io](https://crates.io/crates/jumprope)
@@ -27,12 +25,14 @@ This code is based on an older [skiplist based C rope library](https://github.co
 
 I've uploaded some benchmarks of the different algorithms [here](https://home.seph.codes/public/rope_bench/report/). Jumprope processes the datasets found [in crdt-benchmarks](https://github.com/josephg/crdt-benchmarks) faster than any other library I know of:
 
-| Dataset | Ropey | librope (C) | Jumprope |
-|---------|-------|-------------|----------|
-automerge-paper | 25.16 ms | 16.28 ms | 6.66 ms
-rustcode | 4.71 ms | 3.93 ms | 1.66 ms
-sveltecomponent | 2.31 ms | 1.59 ms | 0.59 ms
-seph-blog1 | 13.04 ms | 10.01 ms | 3.81 ms
+| Dataset | Raw string | XiRope | Ropey | librope (C) | Jumprope |
+|---------|------------|--------|-------|-------------|----------|
+automerge-paper | 3908.13 ms | 518.75 ms | 25.16 ms | 16.28 ms | 6.66 ms
+rustcode | 569.44 ms | DNF | 4.71 ms | 3.93 ms | 1.66 ms
+sveltecomponent | 41.05 ms | 24.83 ms | 2.31 ms | 1.59 ms | 0.59 ms
+seph-blog1 | 1238.44 ms | DNF | 13.04 ms | 10.01 ms | 3.81 ms
+
+I tried AnRope as well, but couldn't get it to process these datasets correctly at all. 
 
 > Benchmarks run on a single core of a Ryzen 5800X
 
