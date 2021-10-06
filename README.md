@@ -20,10 +20,15 @@ This library is similar to [ropey](https://crates.io/crates/ropey), which has mo
 This code is based on an older [skiplist based C rope library](https://github.com/josephg/librope) I wrote several years ago as an excuse to play with skip lists. It has a few notable differences:
 
 - Instead of simply being implemented as a skiplist, jumprope is a skiplist where each leaf node contains a [Gap Buffer](https://en.wikipedia.org/wiki/Gap_buffer).
-- Jumprope is faster with real data. (See table below)
+- Jumprope is faster. (See table below)
 - Jumprope does not (currently) support wchar conversion present in librope. This is something that may change in time, especially given how useful it is in a wasm context.
 
-I've uploaded some benchmarks of the different algorithms [here](https://home.seph.codes/public/rope_bench/report/). Jumprope processes the datasets found [in crdt-benchmarks](https://github.com/josephg/crdt-benchmarks) faster than any other library I know of:
+
+## Benchmarks
+
+Running the [editing traces from crdt-benchmarks](https://github.com/josephg/crdt-benchmarks), jumprope is faster than any other library in cargo that I know of:
+
+Running on a single core of a Ryzen 5800X:
 
 | Dataset | Raw string | XiRope | Ropey | librope (C) | Jumprope |
 |---------|------------|--------|-------|-------------|----------|
@@ -32,9 +37,10 @@ rustcode | 569.44 ms | DNF | 4.71 ms | 3.93 ms | 1.66 ms
 sveltecomponent | 41.05 ms | 24.83 ms | 2.31 ms | 1.59 ms | 0.59 ms
 seph-blog1 | 1238.44 ms | DNF | 13.04 ms | 10.01 ms | 3.81 ms
 
-I tried AnRope as well, but couldn't get it to process these datasets correctly at all. 
+Full criterion report is [here](https://home.seph.codes/public/rope_bench/report/).
 
-> Benchmarks run on a single core of a Ryzen 5800X
+I tried AnRope as well, but couldn't get it to process these datasets correctly at all.
+
 
 # LICENSE
 
