@@ -41,54 +41,69 @@ fn random_ascii_string(rng: &mut SmallRng, len: usize) -> String {
 impl Rope for JumpRope {
     const NAME: &'static str = "JumpRope";
 
+    #[inline(always)]
     fn new() -> Self { JumpRope::new() }
 
+    #[inline(always)]
     fn insert_at(&mut self, pos: usize, contents: &str) { self.insert(pos, contents); }
+    #[inline(always)]
     fn del_at(&mut self, pos: usize, len: usize) { self.remove(pos..pos+len); }
+
+    #[inline(always)]
     fn edit_at(&mut self, pos: usize, del_len: usize, ins_content: &str) {
         self.replace(pos..pos+del_len, ins_content);
     }
 
+    #[inline(always)]
     fn to_string(&self) -> String { ToString::to_string(self) }
-    
-    // fn len(&self) -> usize { self.len() } // in bytes
+
+    #[inline(always)]
     fn char_len(&self) -> usize { self.len_chars() } // in unicode values
 }
 
 impl Rope for AnRope {
     const NAME: &'static str = "AnRope";
 
+    #[inline(always)]
     fn new() -> Self { AnRope::new() }
 
+    #[inline(always)]
     fn insert_at(&mut self, pos: usize, contents: &str) { *self = self.insert_str(pos, contents); }
+    #[inline(always)]
     fn del_at(&mut self, pos: usize, len: usize) { *self = self.delete(pos..pos+len); }
 
+    #[inline(always)]
     fn to_string(&self) -> String { ToString::to_string(self) }
-    
-    // fn len(&self) -> usize { self.len() } // in bytes
+
+    #[inline(always)]
     fn char_len(&self) -> usize { self.len() } // in unicode values
 }
 
 impl Rope for XiRope {
     const NAME: &'static str = "XiRope";
 
+    #[inline(always)]
     fn new() -> Self { XiRope::from("") }
 
+    #[inline(always)]
     fn insert_at(&mut self, pos: usize, contents: &str) {
         self.edit(pos..pos, contents);
     }
+    #[inline(always)]
     fn del_at(&mut self, pos: usize, len: usize) {
         self.edit(pos..pos+len, "");
     }
+    #[inline(always)]
     fn edit_at(&mut self, pos: usize, del_len: usize, ins_content: &str) {
         self.edit(pos..pos+del_len, ins_content);
     }
 
+    #[inline(always)]
     fn to_string(&self) -> String {
         String::from(self)
     }
-    
-    // fn len(&self) -> usize { self.len() } // in bytes
+
+    #[inline(always)]
     fn char_len(&self) -> usize {
         let mut len = 0;
         for s in self.iter_chunks(..) {
@@ -101,11 +116,14 @@ impl Rope for XiRope {
 impl Rope for RopeyRope {
     const NAME: &'static str = "Ropey";
 
+    #[inline(always)]
     fn new() -> Self { RopeyRope::new() }
 
+    #[inline(always)]
     fn insert_at(&mut self, pos: usize, contents: &str) {
         self.insert(pos, contents);
     }
+    #[inline(always)]
     fn del_at(&mut self, pos: usize, len: usize) {
         self.remove(pos..pos+len);
     }
@@ -113,9 +131,10 @@ impl Rope for RopeyRope {
 
     // fn slice(&self, pos: usize, len: usize) -> Result<String, RopeError>;
 
+    #[inline(always)]
     fn to_string(&self) -> String { unimplemented!() }
-    
-    // fn len(&self) -> usize { self.len_bytes() } // in bytes
+
+    #[inline(always)]
     fn char_len(&self) -> usize { self.len_chars() } // in unicode values
 }
 
@@ -142,20 +161,23 @@ struct CRope(*mut CRopeRaw);
 impl Rope for CRope {
     const NAME: &'static str = "C-JumpRope";
 
+    #[inline(always)]
     fn new() -> Self { unsafe { CRope(rope_new()) } }
 
+    #[inline(always)]
     fn insert_at(&mut self, pos: usize, contents: &str) {
         unsafe {
             let cstr = CString::new(contents).unwrap();
             rope_insert(self.0, pos, cstr.as_ptr());
         }
     }
+    #[inline(always)]
     fn del_at(&mut self, pos: usize, len: usize) {
         unsafe { rope_del(self.0, pos, len); }
     }
     fn to_string(&self) -> String { unimplemented!() }
-    
-    // fn len(&self) -> usize { unsafe { rope_byte_count(self.0) } } // in bytes
+
+    #[inline(always)]
     fn char_len(&self) -> usize { unsafe { rope_char_count(self.0) } } // in unicode values
 }
 impl Drop for CRope {
