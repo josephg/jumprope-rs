@@ -29,11 +29,11 @@ impl Rope {
     }
 
     #[wasm_bindgen]
-    pub fn delete(&mut self, pos: usize, del_len: usize) {
-        self.0.remove(pos, del_len);
+    pub fn remove(&mut self, pos: usize, del_len: usize) {
+        self.0.remove(pos..pos+del_len);
     }
 
-    #[wasm_bindgen]
+    #[wasm_bindgen(js_name=toString)]
     pub fn as_string(&self) -> String {
         self.0.to_string()
     }
