@@ -1,5 +1,3 @@
-// const LEN: usize = 5;
-// const LEN: usize = 100;
 
 use crate::utils::*;
 
@@ -212,13 +210,15 @@ impl<const LEN: usize> GapBuffer<LEN> {
     }
 
     pub fn count_bytes(&self, char_pos: usize) -> usize {
-        let start_char_len = self.gap_start_chars as usize;
-        if char_pos == start_char_len {
-            self.gap_start_bytes as usize
-        } else if char_pos < start_char_len {
+        let gap_chars = self.gap_start_chars as usize;
+        let gap_bytes = self.gap_start_bytes as usize;
+        // Clippy complains about this but if I swap to a match expression, performance drops by 1%.
+        if char_pos == gap_chars {
+            gap_bytes
+        } else if char_pos < gap_chars {
             self.int_str_get_byte_offset(self.start_as_str(), char_pos)
         } else { // char_pos > start_char_len.
-            self.gap_start_bytes as usize + self.int_str_get_byte_offset(self.end_as_str(), char_pos - start_char_len)
+            gap_bytes + self.int_str_get_byte_offset(self.end_as_str(), char_pos - gap_chars)
         }
     }
 

@@ -20,6 +20,39 @@
 //!
 //! See the [`JumpRope`] type for more usage details.
 //!
+//! # Random numbers, Determinism and DoS protection
+//!
+//! Jumprope is built on top of [skip lists](https://en.wikipedia.org/wiki/Skip_list), which are a
+//! probabilistic data structure. Each node in the list uses a random number generator to decide
+//! its "height". To do this well, skip lists depend on a random number generator for performance.
+//! If a pathologically bad RNG source was used, the skip list would degrade to a linked list (with
+//! `O(n)` performance).
+//!
+//! ## Security
+//!
+//! We have plenty of high quality RNGs available in rust. However, the bad news is that if a
+//! malicious actor can:
+//!
+//! - Predict the sequence of random numbers, and
+//! - Control a sequence of insert & removal operations in the rope
+//!
+//! Then they can *force* the rope to degrade to `O(n)` performance.
+//!
+//! The obvious protection against this is to use a good RNG, seeded with a good entropy source.
+//! This makes the random sequence impossible to predict. Luckily jumprope isn't sensitive to the
+//! performance of the RNG used. The only downside is that using a CSRNG + a good entropy source
+//! makes the compiled binary bigger.
+//!
+//! So there's a feature flag: `["ddos_protection"]`. This flag configures jumprope to use a larger
+//! CSRNG instead of a PRNG. To disable it (eg for WASM), you need to compile jumprope with default
+//! features turned off:
+//!
+//! ```toml
+//! jumprope = { default-features = false }
+//! ```
+//!
+//!
+//!
 //! # A rant on character lengths
 //!
 //! There are 3 different, useful ways to measure string lengths. All of them are useful in certain

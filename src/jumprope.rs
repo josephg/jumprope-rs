@@ -15,6 +15,7 @@ use std::cmp::min;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Range;
 use rand::prelude::*;
+use rand::Rng;
 use crate::gapbuffer::GapBuffer;
 use crate::utils::*;
 // use crate::params::*;
@@ -38,14 +39,21 @@ const NODE_STR_SIZE: usize = 392;
 const MAX_HEIGHT: usize = 20;//NODE_STR_SIZE / mem::size_of::<SkipEntry>();
 const MAX_HEIGHT_U8: u8 = MAX_HEIGHT as u8;
 
+// Using StdRng notably increases wasm code size, providing some tiny extra protection against
+// ddos attacks. See main module documentation for details.
+#[cfg(feature = "ddos_protection")]
+type RopeRng = StdRng;
+#[cfg(not(feature = "ddos_protection"))]
+type RopeRng = SmallRng;
+
+
 // The node structure is designed in a very fancy way which would be more at home in C or something
 // like that. The basic idea is that the node structure is fixed size in memory, but the proportion
 // of that space taken up by characters and by the height are different depentant on a node's
 // height.
-
 #[repr(C)]
 pub struct JumpRope {
-    rng: SmallRng,
+    rng: RopeRng,
     // The total number of characters in the rope
     // num_chars: usize,
 
@@ -102,7 +110,7 @@ fn test_align() {
     assert!(mem::align_of::<Check>() >= mem::align_of::<SkipEntry>());
 }
 
-fn random_height(rng: &mut SmallRng) -> u8 {
+fn random_height(rng: &mut RopeRng) -> u8 {
     let mut h: u8 = 1;
     // TODO: This is using the thread_local rng, which is secure (?!). Check
     // this is actually fast.
@@ -162,7 +170,7 @@ impl Node {
         }
     }
 
-    fn alloc(rng: &mut SmallRng, content: &str) -> *mut Node {
+    fn alloc(rng: &mut RopeRng, content: &str) -> *mut Node {
         Self::alloc_with_height(random_height(rng), content)
     }
 
@@ -189,11 +197,6 @@ impl Node {
     pub(super) fn num_chars(&self) -> usize {
         self.first_next().skip_chars
     }
-
-    // fn mut_next<'a>(&mut self, i: usize) -> &'a mut SkipEntry {
-    //     assert!(i < self.height);
-    //     unsafe { &mut *self.nexts.as_mut_ptr() }
-    // }
 }
 
 #[derive(Debug, Clone)]
@@ -235,15 +238,9 @@ impl RopeCursor {
 /// A rope is a "rich string" data structure for storing fancy strings, like the contents of a
 /// text editor. See module level documentation for more information.
 impl JumpRope {
-    /// Creates a new, empty rope.
-    pub fn new() -> Self {
+    fn new_with_rng(rng: RopeRng) -> Self {
         JumpRope {
-            rng: SmallRng::seed_from_u64(123),
-            // rng: if cfg!(debug_assertions) { SmallRng::seed_from_u64(123)
-            // } else {
-            //     // SmallRng::from_entropy()
-            //     SmallRng::from_rng(thread_rng()).unwrap()
-            // },
+            rng,
             num_bytes: 0,
             // nexts: [SkipEntry::new(); MAX_HEIGHT],
 
@@ -256,6 +253,38 @@ impl JumpRope {
             },
             nexts: [SkipEntry::new(); MAX_HEIGHT+1],
         }
+    }
+
+    /// Creates and returns a new, empty rope.
+    ///
+    /// In release mode this method is an alias for [`new_from_entropy`](Self::new_from_entropy).
+    /// But when compiled for testing (or in debug mode), we use a fixed seed in order to keep tests
+    /// fully deterministic.
+    ///
+    /// Note using this method in wasm significantly increases bundle size. Use
+    /// [`new_with_seed`](Self::new_from_seed) instead.
+    pub fn new() -> Self {
+        if cfg!(test) || cfg!(debug_assertions) {
+            Self::new_from_seed(123)
+        } else {
+            Self::new_from_entropy()
+        }
+    }
+
+    /// Creates a new, empty rope seeded from an entropy source.
+    pub fn new_from_entropy() -> Self {
+        Self::new_with_rng(RopeRng::from_entropy())
+    }
+
+    /// Creates a new, empty rope using an RNG seeded from the passed u64 parameter.
+    ///
+    /// The performance of this library with any particular data set will vary by a few percent
+    /// within a range based on the seed provided. It may be useful to fix the seed within tests or
+    /// benchmarks in order to make the program entirely deterministic, though bear in mind:
+    ///
+    /// - Jumprope will always use a fixed seed
+    pub fn new_from_seed(seed: u64) -> Self {
+        Self::new_with_rng(RopeRng::seed_from_u64(seed))
     }
 
     fn new_from_str(s: &str) -> Self {

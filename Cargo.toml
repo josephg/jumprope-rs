@@ -11,9 +11,12 @@ license = "ISC OR Apache-2.0"
 [workspace]
 members = ["rope-wasm", "bench"]
 
+[features]
+default = ["ddos_protection"]
+ddos_protection = []
+
 [dependencies]
 rand = { version = "0.8", features = ["small_rng"] }
-getrandom = { version = "0.2.3", features = ["js"] }
 
 # This is just used for a couple functions. TODO: Probably better to inline them locally.
 ropey = "1.3.1"
