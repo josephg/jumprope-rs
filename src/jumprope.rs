@@ -31,10 +31,10 @@ const BIAS: u8 = 65;
 // The rope will become less efficient after the string is 2 ^ ROPE_MAX_HEIGHT nodes.
 
 #[cfg(debug_assertions)]
-const NODE_STR_SIZE: usize = 10;
+pub(crate) const NODE_STR_SIZE: usize = 10;
 #[cfg(not(debug_assertions))]
-const NODE_STR_SIZE: usize = 392;
-// const NODE_STR_SIZE: usize = XX_SIZE;
+pub(crate) const NODE_STR_SIZE: usize = 392;
+// pub(crate) const NODE_STR_SIZE: usize = XX_SIZE;
 
 const MAX_HEIGHT: usize = 20;//NODE_STR_SIZE / mem::size_of::<SkipEntry>();
 const MAX_HEIGHT_U8: u8 = MAX_HEIGHT as u8;
@@ -84,7 +84,7 @@ pub(super) struct Node {
     pub(super) str: GapBuffer<NODE_STR_SIZE>,
 
     // Height of nexts array.
-    height: u8,
+    pub(super) height: u8,
 
     // #[repr(align(std::align_of::<SkipEntry>()))]
 
@@ -318,7 +318,7 @@ impl JumpRope {
     // Internal function for navigating to a particular character offset in the rope.  The function
     // returns the list of nodes which point past the position, as well as offsets of how far into
     // their character lists the specified characters are.
-    pub(crate) fn cursor_at_char(&self, char_pos: usize) -> RopeCursor {
+    pub(crate) fn cursor_at_char(&self, char_pos: usize, stick_end: bool) -> RopeCursor {
         assert!(char_pos <= self.len_chars());
 
         let mut e: *const Node = &self.head;
@@ -332,7 +332,7 @@ impl JumpRope {
             let en = unsafe { &*e };
             let next = en.nexts()[height];
             let skip = next.skip_chars;
-            if offset > skip {
+            if offset > skip || (!stick_end && offset == skip && !next.node.is_null()) {
                 // Go right.
                 assert!(e == &self.head || !en.str.is_empty());
                 offset -= skip;
@@ -361,7 +361,7 @@ impl JumpRope {
     }
 
     fn cursor_at_end(&self) -> RopeCursor {
-        self.cursor_at_char(self.len_chars())
+        self.cursor_at_char(self.len_chars(), true)
     }
 
     // Internal fn to create a new node at the specified iterator filled with the specified
@@ -588,7 +588,10 @@ impl JumpRope {
                     s.skip_chars -= removed;
                 }
             } else {
-                // Remove the node from the skip list.
+                // Remove the node from the skip list. This works because the cursor must be
+                // pointing from the previous element to the start of this element.
+                assert_ne!(cursor.0[0].node, node);
+
                 for i in 0..(*node).height as usize {
                     let s = &mut (*cursor.0[i].node).nexts_mut()[i];
                     s.node = (*node).nexts_mut()[i].node;
@@ -718,6 +721,7 @@ impl Display for JumpRope {
     }
 }
 
+// I don't know why I need all three of these, but I do.
 impl PartialEq<str> for JumpRope {
     fn eq(&self, other: &str) -> bool {
         self.eq_str(other)
@@ -726,6 +730,11 @@ impl PartialEq<str> for JumpRope {
 impl PartialEq<&str> for JumpRope {
     fn eq(&self, other: &&str) -> bool {
         self.eq_str(*other)
+    }
+}
+impl PartialEq<String> for JumpRope {
+    fn eq(&self, other: &String) -> bool {
+        self.eq_str(other.as_str())
     }
 }
 
@@ -772,7 +781,7 @@ impl JumpRope {
         if contents.is_empty() { return; }
         pos = std::cmp::min(pos, self.len_chars());
 
-        let mut cursor = self.cursor_at_char(pos);
+        let mut cursor = self.cursor_at_char(pos, true);
         unsafe { self.insert_at_cursor(&mut cursor, contents); }
 
         debug_assert_eq!(cursor.global_char_pos(self.head.height), pos + count_chars(contents));
@@ -796,7 +805,8 @@ impl JumpRope {
         range.end = range.end.min(self.len_chars());
         if range.start >= range.end { return; }
 
-        let mut cursor = self.cursor_at_char(range.start);
+        // We need to stick_end so we can delete entries.
+        let mut cursor = self.cursor_at_char(range.start, true);
         unsafe { self.del_at_cursor(&mut cursor, range.end - range.start); }
 
         debug_assert_eq!(cursor.global_char_pos(self.head.height), range.start);
@@ -818,7 +828,7 @@ impl JumpRope {
         let pos = usize::min(range.start, len);
         let del_len = usize::min(range.end, len) - pos;
 
-        let mut cursor = self.cursor_at_char(pos);
+        let mut cursor = self.cursor_at_char(pos, true);
         if del_len > 0 {
             unsafe { self.del_at_cursor(&mut cursor, del_len); }
         }

@@ -129,7 +129,7 @@ impl<'a> Iterator for ContentRangeIter<'a> {
                 let byte = str_chars_to_bytes(s, self.skip);
                 assert!(byte < s.len());
 
-                s = &s[self.skip..];
+                s = &s[byte..];
                 char_len -= self.skip;
                 self.skip = 0;
             }
@@ -204,14 +204,15 @@ impl JumpRope {
     /// assert_eq!(string, "Greetings!");
     /// ```
     pub fn slice_chunks(&self, range: Range<usize>) -> ContentRangeIter {
-        let cursor = self.cursor_at_char(range.start);
+        let cursor = self.cursor_at_char(range.start, false);
         let node = unsafe { cursor.here_ptr().as_ref().unwrap() };
         let node_gap_start = node.str.gap_start_chars as usize;
+        let local_pos = cursor.local_char_pos();
 
-        let (at_start, skip) = if range.start >= node_gap_start {
-            (false, range.start - node_gap_start)
+        let (at_start, skip) = if local_pos >= node_gap_start {
+            (false, local_pos - node_gap_start)
         } else {
-            (true, range.start)
+            (true, local_pos)
         };
 
         ContentRangeIter {
@@ -244,7 +245,8 @@ impl JumpRope {
 #[cfg(test)]
 mod tests {
     use crate::JumpRope;
-    use crate::utils::count_chars;
+    use crate::jumprope::NODE_STR_SIZE;
+    use crate::utils::{count_chars, str_chars_to_bytes};
 
     fn check(rope: &JumpRope) {
         for (s, len) in rope.chunks() {
@@ -260,13 +262,21 @@ mod tests {
         assert_eq!(rope.chunks().chars().collect::<String>(), rope.to_string());
         assert_eq!(rope.chars().collect::<String>(), rope.to_string());
         assert_eq!(rope.slice_chars(0..rope.len_chars()).collect::<String>(), rope.to_string());
+
+        let s = rope.to_string();
+        for start in 0..=rope.len_chars() {
+            let iter = rope.slice_chars(start..rope.len_chars());
+            let str = iter.collect::<String>();
+
+            let byte_start = str_chars_to_bytes(&s, start);
+            assert_eq!(str, &s[byte_start..]);
+        }
     }
 
     #[test]
     fn iter_smoke_tests() {
         check(&JumpRope::new());
         check(&JumpRope::from("hi there"));
-        check(&JumpRope::from("κό𝕐𝕆😘σμε"));
 
         let mut rope = JumpRope::from("aaaa");
         rope.insert(2, "b"); // This will force a gap.
@@ -283,5 +293,17 @@ mod tests {
             rope.slice_chunks(3..s.len() - 3).chars().collect::<String>(),
             &s[3..s.len() - 3]
         );
+    }
+
+    #[test]
+    fn iter_non_ascii() {
+        check(&JumpRope::from("κό𝕐𝕆😘σμε"));
+    }
+
+    #[test]
+    fn iter_chars_tricky() {
+        let mut rope = JumpRope::new();
+        rope.extend(std::iter::repeat("x").take(NODE_STR_SIZE * 2));
+        check(&rope);
     }
 }
