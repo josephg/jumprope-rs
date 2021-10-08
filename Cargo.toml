@@ -9,7 +9,7 @@ repository = "https://github.com/josephg/jumprope-rs"
 license = "ISC OR Apache-2.0"
 
 [workspace]
-members = ["rope-wasm", "bench"]
+members = ["jumprope-wasm", "bench"]
 
 [features]
 default = ["ddos_protection"]
