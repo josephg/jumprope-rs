@@ -73,7 +73,7 @@
 //! assert_eq!("🐻‍❄️".chars().count(), 4);
 //!
 //! let rope = JumpRope::from("🐻‍❄️"); // One grapheme cluster
-//! assert_eq!(rope.len_bytes(), 13); // 16 UTF8 bytes
+//! assert_eq!(rope.len_bytes(), 13); // 13 UTF8 bytes
 //! assert_eq!(rope.len_chars(), 4); // 4 unicode characters
 //! ```
 //!
