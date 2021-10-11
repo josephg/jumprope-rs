@@ -614,7 +614,7 @@ impl JumpRope {
     }
 
     fn eq_str(&self, mut other: &str) -> bool {
-        if self.len() != other.len() { return false; }
+        if self.len_bytes() != other.len() { return false; }
 
         for s in self.chunks().strings() {
             let (start, rem) = other.split_at(s.len());
@@ -854,9 +854,9 @@ impl JumpRope {
     /// assert_eq!(str.len(), 11); // 11 bytes over the wire
     ///
     /// let rope = JumpRope::from(str);
-    /// assert_eq!(rope.len(), str.len());
+    /// assert_eq!(rope.len_bytes(), str.len());
     /// ```
-    pub fn len(&self) -> usize { self.num_bytes }
+    pub fn len_bytes(&self) -> usize { self.num_bytes }
 
     /// Returns `true` if the rope contains no elements.
     pub fn is_empty(&self) -> bool { self.num_bytes == 0 }

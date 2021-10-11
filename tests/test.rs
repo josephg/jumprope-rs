@@ -41,7 +41,7 @@ mod test {
         // println!("--- rope ---");
         // r.print();
         assert_eq!(r.to_string(), expected);
-        assert_eq!(r.len(), expected.len());
+        assert_eq!(r.len_bytes(), expected.len());
         assert_eq!(r.len_chars(), expected.chars().count());
         assert!(*r == JumpRope::from(expected), "Rope comparison fails");
 
