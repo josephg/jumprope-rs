@@ -862,57 +862,79 @@ impl JumpRope {
     pub fn is_empty(&self) -> bool { self.num_bytes == 0 }
 
     pub fn check(&self) {
-        // #[cfg(test)]
-        {
-            assert!(self.head.height >= 1);
-            assert!(self.head.height < MAX_HEIGHT_U8 + 1);
+        assert!(self.head.height >= 1);
+        assert!(self.head.height < MAX_HEIGHT_U8 + 1);
 
-            let skip_over = &self.nexts[self.head.height as usize - 1];
-            // println!("Skip over skip chars {}, num bytes {}", skip_over.skip_chars, self.num_bytes);
-            assert!(skip_over.skip_chars <= self.num_bytes as usize);
-            assert!(skip_over.node.is_null());
+        let skip_over = &self.nexts[self.head.height as usize - 1];
+        // println!("Skip over skip chars {}, num bytes {}", skip_over.skip_chars, self.num_bytes);
+        assert!(skip_over.skip_chars <= self.num_bytes as usize);
+        assert!(skip_over.node.is_null());
 
-            // The offsets store the total distance travelled since the start.
-            let mut iter = [SkipEntry::new(); MAX_HEIGHT];
-            for i in 0..self.head.height {
-                // Bleh.
-                iter[i as usize].node = &self.head as *const Node as *mut Node;
-            }
-
-            let mut num_bytes: usize = 0;
-            let mut num_chars = 0;
-
-            for n in self.node_iter() {
-                // println!("visiting {:?}", n.as_str());
-                assert!(!n.str.is_empty() || std::ptr::eq(n, &self.head));
-                assert!(n.height <= MAX_HEIGHT_U8);
-                assert!(n.height >= 1);
-                n.str.check();
-
-                assert_eq!(count_chars(n.as_str_1()) + count_chars(n.as_str_2()), n.num_chars());
-                for (i, entry) in iter[0..n.height as usize].iter_mut().enumerate() {
-                    assert_eq!(entry.node as *const Node, n as *const Node);
-                    assert_eq!(entry.skip_chars, num_chars);
-
-                    // println!("replacing entry {:?} with {:?}", entry, n.nexts()[i].node);
-                    entry.node = n.nexts()[i].node;
-                    entry.skip_chars += n.nexts()[i].skip_chars;
-                }
-
-                num_bytes += n.str.len_bytes();
-                num_chars += n.num_chars();
-            }
-
-            for entry in iter[0..self.head.height as usize].iter() {
-                // println!("{:?}", entry);
-                assert!(entry.node.is_null());
-                assert_eq!(entry.skip_chars, num_chars);
-            }
-            
-            // println!("self bytes: {}, count bytes {}", self.num_bytes, num_bytes);
-            assert_eq!(self.num_bytes, num_bytes);
-            assert_eq!(self.len_chars(), num_chars);
+        // The offsets store the total distance travelled since the start.
+        let mut iter = [SkipEntry::new(); MAX_HEIGHT];
+        for i in 0..self.head.height {
+            // Bleh.
+            iter[i as usize].node = &self.head as *const Node as *mut Node;
         }
+
+        let mut num_bytes: usize = 0;
+        let mut num_chars = 0;
+
+        for n in self.node_iter() {
+            // println!("visiting {:?}", n.as_str());
+            assert!(!n.str.is_empty() || std::ptr::eq(n, &self.head));
+            assert!(n.height <= MAX_HEIGHT_U8);
+            assert!(n.height >= 1);
+            n.str.check();
+
+            assert_eq!(count_chars(n.as_str_1()) + count_chars(n.as_str_2()), n.num_chars());
+            for (i, entry) in iter[0..n.height as usize].iter_mut().enumerate() {
+                assert_eq!(entry.node as *const Node, n as *const Node);
+                assert_eq!(entry.skip_chars, num_chars);
+
+                // println!("replacing entry {:?} with {:?}", entry, n.nexts()[i].node);
+                entry.node = n.nexts()[i].node;
+                entry.skip_chars += n.nexts()[i].skip_chars;
+            }
+
+            num_bytes += n.str.len_bytes();
+            num_chars += n.num_chars();
+        }
+
+        for entry in iter[0..self.head.height as usize].iter() {
+            // println!("{:?}", entry);
+            assert!(entry.node.is_null());
+            assert_eq!(entry.skip_chars, num_chars);
+        }
+
+        // println!("self bytes: {}, count bytes {}", self.num_bytes, num_bytes);
+        assert_eq!(self.num_bytes, num_bytes);
+        assert_eq!(self.len_chars(), num_chars);
+    }
+
+    /// This method counts the number of bytes of memory allocated in the rope. This is purely for
+    /// debugging.
+    ///
+    /// Notes:
+    ///
+    /// - This method (its existence, its signature and its return value) is not considered part of
+    ///   the stable API provided by jumprope. This may disappear or change in point releases.
+    /// - This method walks the entire rope. It has time complexity O(n).
+    /// - If a rope is owned inside another structure, this method will double-count the bytes
+    ///   stored in the rope's head.
+    pub fn mem_size(&self) -> usize {
+        let mut nodes = self.node_iter();
+        let mut size = 0;
+        // The first node is the head. Count the actual head size.
+        size += std::mem::size_of::<Self>();
+        nodes.next(); // And discard it from the iterator.
+
+        for n in nodes {
+            let layout = Node::layout_with_height(n.height);
+            size += layout.size();
+        }
+
+        size
     }
 
     #[allow(unused)]
