@@ -432,7 +432,7 @@ impl JumpRope {
         let num_inserted_bytes = contents.len();
         let num_inserted_chars = count_chars(contents);
 
-        // Adding this short curcuit makes the code about 2% faster for 1% more code
+        // Adding this short circuit makes the code about 2% faster for 1% more code
         if (*e).str.gap_start_chars as usize == offset && (*e).str.gap_len as usize >= num_inserted_bytes {
             // Short circuit. If we can just insert all the content right here in the gap, do so.
             (*e).str.insert_in_gap(contents);
@@ -443,22 +443,18 @@ impl JumpRope {
         }
 
         if offset > 0 {
+            // Changing this to debug_assert reduces performance by a few % for some reason.
             assert!(offset <= (*e).nexts()[0].skip_chars);
             // This could be faster, but its not a big deal.
-            // let s = (*e).as_str();
-            // offset_bytes = str_get_byte_offset(s, offset);
             offset_bytes = (*e).str.count_bytes(offset);
-
-            // println!("Offset {} offset_bytes {} s {:?}", offset, offset_bytes, s);
-            // let v: Vec<(usize, char)> = s.char_indices().collect();
-            // println!("{:?}", v);
         }
 
         // Can we insert into the current node?
         let current_len_bytes = (*e).str.len_bytes();
         let mut insert_here = current_len_bytes + num_inserted_bytes <= NODE_STR_SIZE;
 
-        // Can we insert into the subsequent node? Check if we're inserting at the end...
+        // If we can't insert here, see if we can move the cursor forward and insert into the
+        // subsequent node.
         if !insert_here && offset_bytes == current_len_bytes {
             // We can insert into the subsequent node if:
             // - We can't insert into the current node
@@ -468,13 +464,13 @@ impl JumpRope {
             if let Some(next) = (*e).first_next_mut().node.as_mut() {
                 if next.str.len_bytes() + num_inserted_bytes <= NODE_STR_SIZE {
                     offset_bytes = 0;
-                    // TODO: Try this on:
-                    // for e in &mut cursor.0[..next.height as usize] {
-                    //     e.node = next;
 
-                    for i in 0..next.height {
-                        cursor.0[i as usize].node = next;
-                        cursor.0[i as usize].skip_chars = 0;
+                    // Could do this with slice::fill but this seems slightly faster.
+                    for e in &mut cursor.0[..next.height as usize] {
+                        *e = SkipEntry {
+                            node: next,
+                            skip_chars: 0
+                        };
                     }
                     e = next;
 
@@ -484,7 +480,6 @@ impl JumpRope {
         }
 
         if insert_here {
-            // println!("insert_here {}", contents);
             // First move the current bytes later on in the string.
             let c = &mut (*e).str;
             c.try_insert(offset_bytes, contents).unwrap();
@@ -499,7 +494,6 @@ impl JumpRope {
             // If we're not at the end of the current node, we'll need to remove
             // the end of the current node's data and reinsert it later.
             (*e).str.move_gap(offset_bytes);
-            // let trailing_data = (*e).str.end_as_str();
 
             let num_end_bytes = (*e).str.len_bytes() - offset_bytes;
             let mut num_end_chars: usize = 0;
@@ -508,9 +502,7 @@ impl JumpRope {
 
                 // It would also be correct (and slightly more space efficient) to pack some of the
                 // new string's characters into this node after trimming it.
-                // let end_str = &(*e).as_str()[offset_bytes..];
                 let end_str = (*e).str.take_rest();
-                // (*e).num_bytes = offset_bytes as u8;
                 num_end_chars = (*e).num_chars() - offset;
 
                 cursor.update_offsets(self.head.height as usize, -(num_end_chars as isize));
