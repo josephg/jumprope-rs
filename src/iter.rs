@@ -203,6 +203,15 @@ impl JumpRope {
     /// }
     /// assert_eq!(string, "Greetings!");
     /// ```
+    ///
+    /// Or more simply:
+    ///
+    /// ```
+    /// # use jumprope::*;
+    /// let rope = JumpRope::from("xxxGreetings!xxx");
+    /// let string = rope.slice_chunks(3..13).map(|(str, _len)| str).collect::<String>();
+    /// assert_eq!(string, "Greetings!");
+    /// ```
     pub fn slice_chunks(&self, range: Range<usize>) -> ContentRangeIter {
         let cursor = self.cursor_at_char(range.start, false);
         let node = unsafe { cursor.here_ptr().as_ref().unwrap() };

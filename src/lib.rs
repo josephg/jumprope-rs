@@ -16,6 +16,10 @@
 //! rope.insert(5, "really "); // "Some really large text document"
 //! rope.replace(0..4, "My rad");  // "My rad really large text document"
 //! assert_eq!(rope, "My rad really large text document");
+//!
+//! // Extract to a string
+//! let s: String = rope.to_string();
+//! assert_eq!(s, "My rad really large text document");
 //! ```
 //!
 //! See the [`JumpRope`] type for more usage details.

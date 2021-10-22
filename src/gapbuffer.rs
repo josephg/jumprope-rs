@@ -238,7 +238,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
 
 impl<const LEN: usize> ToString for GapBuffer<LEN> {
     fn to_string(&self) -> String {
-        let mut result = String::new();
+        let mut result = String::with_capacity(self.len_bytes());
         result.push_str(self.start_as_str());
         result.push_str(self.end_as_str());
         result
