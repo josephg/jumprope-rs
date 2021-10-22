@@ -2,9 +2,8 @@
 name = "jumprope"
 version = "0.4.0"
 authors = ["Joseph Gentle <me@josephg.com>"]
-edition = "2018"
+edition = "2021"
 description = "Simple, fast rope (fancy string) library built on top of Skiplists"
-resolver = "2"
 repository = "https://github.com/josephg/jumprope-rs"
 license = "ISC OR Apache-2.0"
 
