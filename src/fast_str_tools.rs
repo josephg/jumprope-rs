@@ -74,12 +74,12 @@ pub fn byte_to_char_idx(text: &str, byte_idx: usize) -> usize {
 /// Runs in O(N) time.
 #[inline]
 pub fn char_to_byte_idx(text: &str, char_idx: usize) -> usize {
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            if is_x86_feature_detected!("sse2") {
-                return char_to_byte_idx_inner::<sse2::__m128i>(text, char_idx);
-            }
+    #[cfg(not(miri))]
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))] {
+        if is_x86_feature_detected!("sse2") {
+            return char_to_byte_idx_inner::<sse2::__m128i>(text, char_idx);
         }
+    }
 
     // Fallback for non-sse2 platforms.
     char_to_byte_idx_inner::<usize>(text, char_idx)
@@ -138,103 +138,6 @@ fn char_to_byte_idx_inner<T: ByteChunk>(text: &str, char_idx: usize) -> usize {
     }
 }
 
-// /// Converts from char-index to line-index in a string slice.
-// ///
-// /// This is equivalent to counting the line endings before the given char.
-// ///
-// /// Any past-the-end index will return the last line index.
-// ///
-// /// Runs in O(N) time.
-// #[inline]
-// pub fn char_to_line_idx(text: &str, char_idx: usize) -> usize {
-//     byte_to_line_idx(text, char_to_byte_idx(text, char_idx))
-// }
-
-// /// Converts from line-index to byte-index in a string slice.
-// ///
-// /// More specifically, this returns the index of the first byte of the given
-// /// line.
-// ///
-// /// Any past-the-end index will return the one-past-the-end byte index.
-// ///
-// /// Runs in O(N) time.
-// #[inline]
-// pub fn line_to_byte_idx(text: &str, line_idx: usize) -> usize {
-//     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-//         {
-//             if is_x86_feature_detected!("sse2") {
-//                 return line_to_byte_idx_inner::<sse2::__m128i>(text, line_idx);
-//             }
-//         }
-//
-//     // Fallback for non-sse2 platforms.
-//     line_to_byte_idx_inner::<usize>(text, line_idx)
-// }
-
-// #[inline(always)]
-// fn line_to_byte_idx_inner<T: ByteChunk>(text: &str, line_idx: usize) -> usize {
-//     let mut bytes = text.as_bytes();
-//     let mut line_break_count = 0;
-//
-//     // Handle unaligned bytes at the start.
-//     let aligned_idx = alignment_diff::<T>(bytes);
-//     if aligned_idx > 0 {
-//         let result = count_line_breaks_up_to(bytes, aligned_idx, line_idx);
-//         line_break_count += result.0;
-//         bytes = &bytes[result.1..];
-//     }
-//
-//     // Count line breaks in big chunks.
-//     if alignment_diff::<T>(bytes) == 0 {
-//         while bytes.len() >= T::size() {
-//             // Unsafe because the called function depends on correct alignment.
-//             let tmp = unsafe { count_line_breaks_in_chunk_from_ptr::<T>(bytes) }.sum_bytes();
-//             if tmp + line_break_count >= line_idx {
-//                 break;
-//             }
-//             line_break_count += tmp;
-//
-//             bytes = &bytes[T::size()..];
-//         }
-//     }
-//
-//     // Handle unaligned bytes at the end.
-//     let result = count_line_breaks_up_to(bytes, bytes.len(), line_idx - line_break_count);
-//     bytes = &bytes[result.1..];
-//
-//     // Finish up
-//     let mut byte_idx = text.len() - bytes.len();
-//     while !text.is_char_boundary(byte_idx) {
-//         byte_idx += 1;
-//     }
-//     byte_idx
-// }
-//
-// /// Converts from line-index to char-index in a string slice.
-// ///
-// /// More specifically, this returns the index of the first char of the given
-// /// line.
-// ///
-// /// Any past-the-end index will return the one-past-the-end char index.
-// ///
-// /// Runs in O(N) time.
-// #[inline]
-// pub fn line_to_char_idx(text: &str, line_idx: usize) -> usize {
-//     byte_to_char_idx(text, line_to_byte_idx(text, line_idx))
-// }
-
-// /// Counts the utf16 surrogate pairs that would be in `text` if it were encoded
-// /// as utf16.
-// pub(crate) fn count_utf16_surrogates_slow(text: &str) -> usize {
-//     let mut utf16_surrogate_count = 0;
-//
-//     for byte in text.bytes() {
-//         utf16_surrogate_count += ((byte & 0xf0) == 0xf0) as usize;
-//     }
-//
-//     utf16_surrogate_count
-// }
-
 /// Counts the utf16 surrogate pairs that would be in `text` if it were encoded
 /// as utf16.
 #[inline]
@@ -244,12 +147,12 @@ pub(crate) fn count_utf16_surrogates(text: &str) -> usize {
 
 #[inline]
 pub(crate) fn count_utf16_surrogates_in_bytes(text: &[u8]) -> usize {
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            if is_x86_feature_detected!("sse2") {
-                return count_utf16_surrogates_internal::<sse2::__m128i>(text);
-            }
+    #[cfg(not(miri))]
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))] {
+        if is_x86_feature_detected!("sse2") {
+            return count_utf16_surrogates_internal::<sse2::__m128i>(text);
         }
+    }
 
     // Fallback for non-sse2 platforms.
     count_utf16_surrogates_internal::<usize>(text)
@@ -336,6 +239,7 @@ pub(crate) fn count_chars(text: &str) -> usize {
 
 #[inline]
 pub(crate) fn count_chars_in_bytes(text: &[u8]) -> usize {
+    #[cfg(not(miri))]
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         {
             if is_x86_feature_detected!("sse2") {
@@ -350,7 +254,7 @@ pub(crate) fn count_chars_in_bytes(text: &[u8]) -> usize {
 #[inline(always)]
 fn count_chars_internal<T: ByteChunk>(text: &[u8]) -> usize {
     // Get `middle` for more efficient chunk-based counting.
-    let (start, middle, end) = unsafe { text.align_to::<T>() };
+    let (start, middle, end): (&[u8], &[T], &[u8]) = unsafe { text.align_to::<T>() };
 
     let mut inv_count = 0;
 
@@ -544,8 +448,13 @@ impl ByteChunk for usize {
         const ONES: usize = std::usize::MAX / 0xFF;
         self.wrapping_mul(ONES) >> ((Self::size() - 1) * 8)
     }
+
+    fn count_bits(&self) -> u32 {
+        self.count_ones()
+    }
 }
 
+#[cfg(not(miri))]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 impl ByteChunk for sse2::__m128i {
     #[inline(always)]
@@ -774,80 +683,6 @@ impl ByteChunk for sse2::__m128i {
 //     }
 // }
 
-//======================================================================
-
-/// An iterator that yields the byte indices of line breaks in a string.
-/// A line break in this case is the point immediately *after* a newline
-/// character.
-///
-/// The following unicode sequences are considered newlines by this function:
-/// - u{000A}        (Line Feed)
-/// - u{000B}        (Vertical Tab)
-/// - u{000C}        (Form Feed)
-/// - u{000D}        (Carriage Return)
-/// - u{000D}u{000A} (Carriage Return + Line Feed)
-/// - u{0085}        (Next Line)
-/// - u{2028}        (Line Separator)
-/// - u{2029}        (Paragraph Separator)
-#[allow(unused)] // Used in tests, as reference solution.
-struct LineBreakIter<'a> {
-    byte_itr: std::str::Bytes<'a>,
-    byte_idx: usize,
-}
-
-#[allow(unused)]
-impl<'a> LineBreakIter<'a> {
-    #[inline]
-    fn new(text: &str) -> LineBreakIter {
-        LineBreakIter {
-            byte_itr: text.bytes(),
-            byte_idx: 0,
-        }
-    }
-}
-
-impl<'a> Iterator for LineBreakIter<'a> {
-    type Item = usize;
-
-    #[inline]
-    fn next(&mut self) -> Option<usize> {
-        while let Some(byte) = self.byte_itr.next() {
-            self.byte_idx += 1;
-            // Handle u{000A}, u{000B}, u{000C}, and u{000D}
-            if (0x0A..=0x0D).contains(&byte) {
-                if byte == 0x0D {
-                    // We're basically "peeking" here.
-                    if let Some(0x0A) = self.byte_itr.clone().next() {
-                        self.byte_itr.next();
-                        self.byte_idx += 1;
-                    }
-                }
-                return Some(self.byte_idx);
-            }
-            // Handle u{0085}
-            else if byte == 0xC2 {
-                self.byte_idx += 1;
-                if let Some(0x85) = self.byte_itr.next() {
-                    return Some(self.byte_idx);
-                }
-            }
-            // Handle u{2028} and u{2029}
-            else if byte == 0xE2 {
-                self.byte_idx += 2;
-                let byte2 = self.byte_itr.next().unwrap();
-                let byte3 = self.byte_itr.next().unwrap() >> 1;
-                if byte2 == 0x80 && byte3 == 0x54 {
-                    return Some(self.byte_idx);
-                }
-            }
-        }
-
-        return None;
-    }
-}
-
-//======================================================================
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -867,23 +702,6 @@ mod tests {
     #[test]
     fn count_chars_02() {
         assert_eq!(100, count_chars(TEXT_LINES));
-    }
-
-    #[test]
-    fn line_breaks_iter_01() {
-        let text = "\u{000A}Hello\u{000D}\u{000A}\u{000D}せ\u{000B}か\u{000C}い\u{0085}. \
-                    There\u{2028}is something.\u{2029}";
-        let mut itr = LineBreakIter::new(text);
-        assert_eq!(48, text.len());
-        assert_eq!(Some(1), itr.next());
-        assert_eq!(Some(8), itr.next());
-        assert_eq!(Some(9), itr.next());
-        assert_eq!(Some(13), itr.next());
-        assert_eq!(Some(17), itr.next());
-        assert_eq!(Some(22), itr.next());
-        assert_eq!(Some(32), itr.next());
-        assert_eq!(Some(48), itr.next());
-        assert_eq!(None, itr.next());
     }
 
     #[test]
