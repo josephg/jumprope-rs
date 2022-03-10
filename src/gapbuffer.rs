@@ -279,7 +279,8 @@ impl<const LEN: usize> GapBuffer<LEN> {
                 }
             } else {
                 let bytes = self.int_str_get_byte_offset(self.end_as_str(), char_pos - gap_chars);
-                let slice = &self.data[(self.gap_start_bytes + self.gap_len) as usize..bytes];
+                let base = (self.gap_start_bytes + self.gap_len) as usize;
+                let slice = &self.data[base..base + bytes];
                 count_utf16_surrogates_in_bytes(slice)
             }
         }

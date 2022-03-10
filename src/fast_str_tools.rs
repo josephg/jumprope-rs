@@ -553,14 +553,14 @@ impl ByteChunk for sse2::__m128i {
         std::mem::size_of::<sse2::__m128i>()
     }
 
-    #[inline(always)]
-    fn max_acc() -> usize {
-        255
-    }
     // #[inline(always)]
     // fn max_acc() -> usize {
-    //     (256 / 8) - 1
+    //     255
     // }
+    #[inline(always)]
+    fn max_acc() -> usize {
+        (256 / 8) - 1
+    }
 
     #[inline(always)]
     fn splat(n: u8) -> Self {
@@ -642,17 +642,17 @@ impl ByteChunk for sse2::__m128i {
 
     #[inline(always)]
     fn sum_bytes(&self) -> usize {
-        // const ONES: u64 = std::u64::MAX / 0xFF;
-        // let tmp = unsafe { std::mem::transmute::<Self, (u64, u64)>(*self) };
-        // let a = tmp.0.wrapping_mul(ONES) >> (7 * 8);
-        // let b = tmp.1.wrapping_mul(ONES) >> (7 * 8);
-        // (a + b) as usize
-        unsafe {
-            let zero = sse2::_mm_setzero_si128();
-            let diff = sse2::_mm_sad_epu8(*self, zero);
-            let (low, high) = std::mem::transmute::<Self, (u64, u64)>(diff);
-            (low + high) as usize
-        }
+        const ONES: u64 = std::u64::MAX / 0xFF;
+        let tmp = unsafe { std::mem::transmute::<Self, (u64, u64)>(*self) };
+        let a = tmp.0.wrapping_mul(ONES) >> (7 * 8);
+        let b = tmp.1.wrapping_mul(ONES) >> (7 * 8);
+        (a + b) as usize
+        // unsafe {
+        //     let zero = sse2::_mm_setzero_si128();
+        //     let diff = sse2::_mm_sad_epu8(*self, zero);
+        //     let (low, high) = std::mem::transmute::<Self, (u64, u64)>(diff);
+        //     (low + high) as usize
+        // }
     }
 }
 
