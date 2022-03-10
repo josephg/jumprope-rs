@@ -1,3 +1,4 @@
+use crate::fast_str_tools::*;
 
 // Get the byte offset after char_pos utf8 characters
 pub(crate) fn str_chars_to_bytes(s: &str, char_pos: usize) -> usize {
@@ -6,16 +7,16 @@ pub(crate) fn str_chars_to_bytes(s: &str, char_pos: usize) -> usize {
     //     |(i, _)| i
     // )
 
-    ropey::str_utils::char_to_byte_idx(s, char_pos)
+    char_to_byte_idx(s, char_pos)
 }
 
-pub(crate) fn str_bytes_to_chars(s: &str, bytes: usize) -> usize {
-    ropey::str_utils::byte_to_char_idx(s, bytes)
-}
-
-pub(crate) fn count_chars(s: &str) -> usize {
-    str_bytes_to_chars(s, s.len())
-}
+// pub(crate) fn str_bytes_to_chars(s: &str, bytes: usize) -> usize {
+//     byte_to_char_idx(s, bytes)
+// }
+//
+// pub(crate) fn count_chars(s: &str) -> usize {
+//     str_bytes_to_chars(s, s.len())
+// }
 
 pub(crate) fn str_chars_to_bytes_rev(s: &str, char_len: usize) -> usize {
     if char_len == 0 { return 0; }
@@ -30,6 +31,24 @@ pub(crate) fn str_chars_to_bytes_rev(s: &str, char_len: usize) -> usize {
     }
     panic!("Insufficient characters in string");
 }
+
+// #[cfg(feature = "wchar_conversion")]
+// pub(crate) fn count_wchars(s: &str) -> usize {
+//     // TODO: There's a better way to write this.
+//     s.chars()
+//         .map(|c| c.len_utf16())
+//         .sum()
+// }
+//
+// #[cfg(feature = "wchar_conversion")]
+// pub(crate) fn str_chars_to_wchars(s: &str, char_len: usize) -> usize {
+//     // TODO: There's a better way to write this.
+//     // TODO: Compare this with char_len + filter + count.
+//     s.chars()
+//         .take(char_len)
+//         .map(|c| c.len_utf16())
+//         .sum()
+// }
 
 #[cfg(test)]
 mod tests {

@@ -123,6 +123,7 @@ mod jumprope;
 mod gapbuffer;
 mod utils;
 mod iter;
+mod fast_str_tools;
 // mod params;
 
 pub use crate::jumprope::JumpRope;

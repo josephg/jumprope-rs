@@ -253,9 +253,9 @@ impl JumpRope {
 
 #[cfg(test)]
 mod tests {
+    use crate::fast_str_tools::*;
     use crate::JumpRope;
     use crate::jumprope::NODE_STR_SIZE;
-    use crate::utils::{count_chars, str_chars_to_bytes};
 
     fn check(rope: &JumpRope) {
         for (s, len) in rope.chunks() {
@@ -277,7 +277,7 @@ mod tests {
             let iter = rope.slice_chars(start..rope.len_chars());
             let str = iter.collect::<String>();
 
-            let byte_start = str_chars_to_bytes(&s, start);
+            let byte_start = char_to_byte_idx(&s, start);
             assert_eq!(str, &s[byte_start..]);
         }
     }
