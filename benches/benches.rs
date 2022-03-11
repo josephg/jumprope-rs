@@ -128,7 +128,7 @@ const DATASETS: &[&str] = &["automerge-paper", "rustcode", "sveltecomponent", "s
 
 fn realworld_benchmarks(c: &mut Criterion) {
     for name in DATASETS {
-        let mut group = c.benchmark_group("direct");
+        let mut group = c.benchmark_group("testdata");
         // let mut group = c.benchmark_group("local");
         let test_data = testing_data(name);
         let merged = collapse(&test_data);
@@ -141,12 +141,13 @@ fn realworld_benchmarks(c: &mut Criterion) {
                 let mut rope = JumpRope::new();
                 for txn in test_data.txns.iter() {
                     for TestPatch(pos, del_span, ins_content) in &txn.patches {
-                        if *del_span > 0 {
-                            rope.remove(*pos .. *pos + *del_span);
-                        }
-                        if !ins_content.is_empty() {
-                            rope.insert(*pos, ins_content);
-                        }
+                        rope.replace(*pos .. *pos + *del_span, ins_content);
+                        // if *del_span > 0 {
+                        //     rope.remove(*pos .. *pos + *del_span);
+                        // }
+                        // if !ins_content.is_empty() {
+                        //     rope.insert(*pos, ins_content);
+                        // }
                     }
                 }
 

@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn smoke_test() {
-        let mut r: Rope = Rope::new();
+        let mut r: Rope = Rope::new(None);
         assert_eq!(r.as_string(), "");
         r.insert(0, "hi there");
         assert_eq!(r.as_string(), "hi there");

@@ -1157,8 +1157,8 @@ impl JumpRope {
     }
 
     #[allow(unused)]
-    // pub(crate) fn print(&self) {
-    pub fn print(&self) {
+    // pub fn print(&self) {
+    pub(crate) fn print(&self) {
         println!("chars: {}\tbytes: {}\theight: {}", self.len_chars(), self.num_bytes, self.head.height);
 
         print!("HEAD:");
@@ -1205,7 +1205,7 @@ impl JumpRope {
     ///
     /// Returns the insertion position in characters.
     pub fn insert_at_wchar(&mut self, mut pos_wchar: usize, contents: &str) -> usize {
-        pos_wchar = std::cmp::min(pos_wchar, self.len_wchars());
+        pos_wchar = pos_wchar.min(self.len_wchars());
 
         let mut cursor = self.cursor_at_wchar(pos_wchar, true);
         // dbg!(pos_wchar, &cursor.0[0..3]);
@@ -1217,5 +1217,26 @@ impl JumpRope {
         );
 
         cursor.global_char_pos(self.head.height)
+    }
+
+    /// Remove items from the rope, specified by the passed range. The indexes are interpreted
+    /// as wchar offsets (like you'd get in javascript / C# / etc).
+    pub fn remove_at_wchar(&mut self, mut range: Range<usize>) {
+        range.end = range.end.min(self.len_wchars());
+        if range.is_empty() { return; }
+
+        // Rather than making some fancy custom remove function, I'm just going to convert the
+        // removed range into a char range and delete that.
+        let cursor_end = self.cursor_at_wchar(range.end, true);
+        let char_end = cursor_end.global_char_pos(self.head.height);
+        drop(cursor_end);
+
+        // We need to stick_end so we can delete entries.
+        let mut cursor = self.cursor_at_wchar(range.start, true);
+        let char_start = cursor.global_char_pos(self.head.height);
+
+        unsafe { self.del_at_cursor(&mut cursor, char_end - char_start); }
+
+        debug_assert_eq!(cursor.wchar_pos(self.head.height), range.start);
     }
 }

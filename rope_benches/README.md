@@ -4,7 +4,7 @@ This is a small collection of benchmarks of various rope implementations in rust
 
 I'm comparing:
 
-- My own rustrope (Skip list based)
+- Jumprope (this library)
 - The [C version of this rope library](https://github.com/josephg/librope)
 - [ropey](https://crates.io/crates/ropey/)
 - [xi-rope](https://crates.io/crates/xi-rope)

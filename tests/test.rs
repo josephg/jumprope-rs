@@ -4,6 +4,7 @@
 use rand::prelude::*;
 
 use std::cmp::min;
+use std::ops::Range;
 
 const UCHARS: [char; 23] = [
   'a', 'b', 'c', '1', '2', '3', ' ', '_', // ASCII
@@ -172,16 +173,18 @@ fn string_insert_at(s: &mut String, char_pos: usize, contents: &str) {
     }
 }
 
+fn char_range_to_byte_range(s: &String, range: Range<usize>) -> Range<usize> {
+    let mut iter = s.char_indices().map(|(p, _)| p).skip(range.start).peekable();
+
+    let start = iter.peek().map_or_else(|| s.len(), |&p| p);
+    let mut iter = iter.skip(range.end - range.start).peekable();
+    let end = iter.peek().map_or_else(|| s.len(), |&p| p);
+
+    start..end
+}
+
 fn string_del_at(s: &mut String, pos: usize, length: usize) {
-    let byte_range = {
-        let mut iter = s.char_indices().map(|(p, _)| p).skip(pos).peekable();
-
-        let start = iter.peek().map_or_else(|| s.len(), |&p| p);
-        let mut iter = iter.skip(length).peekable();
-        let end = iter.peek().map_or_else(|| s.len(), |&p| p);
-
-        start..end
-    };
+    let byte_range = char_range_to_byte_range(s, pos..pos+length);
 
     s.drain(byte_range);
 }
@@ -261,8 +264,6 @@ fn random_edits_wchar(seed: u64, verbose: bool) {
     for _i in 0..400 {
         if verbose { println!("{_i} s: '{s}'"); }
         // r.print();
-        check(&r, s.as_str());
-
         let len_chars = s.chars().count();
 
         // println!("i {}: {}", i, len);
@@ -288,23 +289,37 @@ fn random_edits_wchar(seed: u64, verbose: bool) {
             string_insert_at(&mut s, pos_chars, text.as_str());
         } else {
             // Delete
-            let pos = rng.gen_range(0..len_chars);
-            let dlen = min(rng.gen_range(0..10), len_chars - pos);
+            let pos_chars = rng.gen_range(0..len_chars);
+            let dlen_chars = min(rng.gen_range(0..10), len_chars - pos_chars);
+            let char_range = pos_chars..pos_chars+dlen_chars;
+            let byte_range = char_range_to_byte_range(&s, char_range.clone());
+            // Now convert it to a wchar range :p
+            let start_wchar = s[..byte_range.start].chars().map(|c| c.len_utf16()).sum::<usize>();
+            let len_wchar = s[byte_range.clone()].chars().map(|c| c.len_utf16()).sum::<usize>();
+            let wchar_range = start_wchar..start_wchar + len_wchar;
+
             if verbose {
-                println!("Removing {dlen} characters at {pos}");
+                println!("Removing {}..{} (wchar {}..{})",
+                         char_range.start, char_range.end,
+                         wchar_range.start, wchar_range.end
+                );
             }
 
-            r.remove(pos..pos+dlen);
+            // r.remove(pos_chars..pos_chars + dlen_chars);
+            r.remove_at_wchar(wchar_range);
             // r.print();
-            string_del_at(&mut s, pos, dlen);
+            // string_del_at(&mut s, pos_chars, dlen_chars);
+            s.drain(byte_range);
         }
+
+        check(&r, s.as_str());
     }
 }
 
 #[cfg(feature = "wchar_conversion")]
 #[test]
 fn fuzz_wchar_once() {
-    random_edits_wchar(223, false);
+    random_edits_wchar(22, false);
 }
 
 // Run with:
