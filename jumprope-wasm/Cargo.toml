@@ -7,7 +7,7 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["ddos_protection"]
+default = ["ddos_protection", "jumprope/wchar_conversion"]
 ddos_protection = []
 
 [dependencies]

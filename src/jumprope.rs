@@ -161,6 +161,7 @@ impl Node {
 
     fn alloc_with_height(height: u8, content: &str) -> *mut Node {
         //println!("height {} {}", height, max_height());
+        #![allow(clippy::manual_range_contains)]
         assert!(height >= 1 && height <= MAX_HEIGHT_U8);
 
         unsafe {
@@ -895,7 +896,7 @@ impl JumpRope {
     ///
     /// If the position names a location past the end of the rope, it is truncated.
     pub fn insert(&mut self, mut pos: usize, contents: &str) {
-        if cfg!(debug_assertions) { self.check(); }
+        // if cfg!(debug_assertions) { self.check(); }
 
         if contents.is_empty() { return; }
         pos = std::cmp::min(pos, self.len_chars());
@@ -905,8 +906,6 @@ impl JumpRope {
 
         debug_assert_eq!(cursor.global_char_pos(self.head.height), pos + count_chars(contents));
         // dbg!(&cursor.0[..self.head.height as usize]);
-
-        if cfg!(debug_assertions) { self.check(); }
     }
 
     /// Delete a span of unicode characters from the rope. The span is specified in unicode
@@ -923,7 +922,7 @@ impl JumpRope {
     /// assert_eq!(rope.to_string(), "Whoa!");
     /// ```
     pub fn remove(&mut self, mut range: Range<usize>) {
-        if cfg!(debug_assertions) { self.check(); }
+        // if cfg!(debug_assertions) { self.check(); }
 
         range.end = range.end.min(self.len_chars());
         if range.start >= range.end { return; }

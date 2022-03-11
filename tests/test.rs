@@ -43,6 +43,9 @@ mod test {
         assert_eq!(r.to_string(), expected);
         assert_eq!(r.len_bytes(), expected.len());
         assert_eq!(r.len_chars(), expected.chars().count());
+        #[cfg(feature = "wchar_conversion")] {
+            assert_eq!(r.len_wchar(), expected.chars().map(|c| c.len_utf16()).sum());
+        }
         assert!(*r == JumpRope::from(expected), "Rope comparison fails");
 
         let clone = r.clone();
@@ -185,14 +188,12 @@ mod test {
         s.drain(byte_range);
     }
 
-
-    #[test]
-    fn random_edits() {
+    fn random_edits(seed: u64) {
         let mut r = JumpRope::new();
         let mut s = String::new();
         
         // let mut rng = rand::thread_rng();
-        let mut rng = SmallRng::seed_from_u64(2);
+        let mut rng = SmallRng::seed_from_u64(seed);
 
         for _i in 0..1000 {
             // println!("{}", _i);
@@ -218,6 +219,22 @@ mod test {
                 r.remove(pos..pos+dlen);
                 string_del_at(&mut s, pos, dlen);
             }
+        }
+    }
+
+    #[test]
+    fn fuzz_once() {
+        random_edits(123);
+    }
+
+    // Run with:
+    // cargo test --release fuzz_forever -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn fuzz_forever() {
+        for seed in 0.. {
+            if seed % 100 == 0 { println!("seed: {seed}"); }
+            random_edits(seed);
         }
     }
 }

@@ -45,28 +45,6 @@ pub fn byte_to_char_idx(text: &str, byte_idx: usize) -> usize {
     }
 }
 
-// /// Converts from byte-index to line-index in a string slice.
-// ///
-// /// This is equivalent to counting the line endings before the given byte.
-// ///
-// /// Any past-the-end index will return the last line index.
-// ///
-// /// Runs in O(N) time.
-// #[inline]
-// pub fn byte_to_line_idx(text: &str, byte_idx: usize) -> usize {
-//     use crate::crlf;
-//     let mut byte_idx = byte_idx.min(text.len());
-//     while !text.is_char_boundary(byte_idx) {
-//         byte_idx -= 1;
-//     }
-//     let nl_count = count_line_breaks(&text[..byte_idx]);
-//     if crlf::is_break(byte_idx, text.as_bytes()) {
-//         nl_count
-//     } else {
-//         nl_count - 1
-//     }
-// }
-
 /// Converts from char-index to byte-index in a string slice.
 ///
 /// Any past-the-end index will return the one-past-the-end byte index.
@@ -83,6 +61,27 @@ pub fn char_to_byte_idx(text: &str, char_idx: usize) -> usize {
 
     // Fallback for non-sse2 platforms.
     char_to_byte_idx_inner::<usize>(text, char_idx)
+    // char_to_byte_idx_naive(text.as_bytes(), char_idx)
+}
+
+#[allow(unused)]
+#[inline(always)]
+fn char_to_byte_idx_naive(text: &[u8], char_idx: usize) -> usize {
+    let mut byte_count = 0;
+    let mut char_count = 0;
+
+    let mut i = 0;
+    while i < text.len() && char_count <= char_idx {
+        char_count += ((text[i] & 0xC0) != 0x80) as usize;
+        i += 1;
+    }
+    byte_count += i;
+
+    if byte_count == text.len() && char_count <= char_idx {
+        byte_count
+    } else {
+        byte_count - 1
+    }
 }
 
 #[inline(always)]
@@ -147,46 +146,10 @@ pub(crate) fn count_utf16_surrogates(text: &str) -> usize {
 
 #[inline]
 pub(crate) fn count_utf16_surrogates_in_bytes(text: &[u8]) -> usize {
-    #[cfg(not(miri))]
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))] {
-        if is_x86_feature_detected!("sse2") {
-            return count_utf16_surrogates_internal::<sse2::__m128i>(text);
-        }
-    }
-
-    // Fallback for non-sse2 platforms.
-    count_utf16_surrogates_internal::<usize>(text)
-}
-
-#[inline(always)]
-fn count_utf16_surrogates_internal<T: ByteChunk>(text: &[u8]) -> usize {
-    // Get `middle` for more efficient chunk-based counting.
-    let (start, middle, end) = unsafe { text.align_to::<T>() };
-
+    // This is smaller and faster than the simd version in my tests.
     let mut utf16_surrogate_count = 0;
 
-    // Take care of unaligned bytes at the beginning.
-    for byte in start.iter() {
-        utf16_surrogate_count += ((byte & 0xf0) == 0xf0) as usize;
-    }
-
-    // Take care of the middle bytes in big chunks.
-    let mut i = 0;
-    let mut acc = T::splat(0);
-    for chunk in middle.iter() {
-        let tmp = chunk.bitand(T::splat(0xf0)).cmp_eq_byte(0xf0);
-        acc = acc.add(tmp);
-        i += 1;
-        if i == T::max_acc() {
-            i = 0;
-            utf16_surrogate_count += acc.sum_bytes();
-            acc = T::splat(0);
-        }
-    }
-    utf16_surrogate_count += acc.sum_bytes();
-
-    // Take care of unaligned bytes at the end.
-    for byte in end.iter() {
+    for byte in text.iter() {
         utf16_surrogate_count += ((byte & 0xf0) == 0xf0) as usize;
     }
 
@@ -239,51 +202,12 @@ pub(crate) fn count_chars(text: &str) -> usize {
 
 #[inline]
 pub(crate) fn count_chars_in_bytes(text: &[u8]) -> usize {
-    #[cfg(not(miri))]
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            if is_x86_feature_detected!("sse2") {
-                return count_chars_internal::<sse2::__m128i>(text);
-            }
-        }
-
-    // Fallback for non-sse2 platforms.
-    count_chars_internal::<usize>(text)
-}
-
-#[inline(always)]
-fn count_chars_internal<T: ByteChunk>(text: &[u8]) -> usize {
-    // Get `middle` for more efficient chunk-based counting.
-    let (start, middle, end): (&[u8], &[T], &[u8]) = unsafe { text.align_to::<T>() };
-
+    // Smaller and faster than the simd version.
     let mut inv_count = 0;
-
-    // Take care of unaligned bytes at the beginning.
-    for byte in start.iter() {
-        inv_count += ((byte & 0xC0) == 0x80) as usize;
+    for byte in text.iter() {
+        inv_count += ((byte & 0xC0) != 0x80) as usize;
     }
-
-    // Take care of the middle bytes in big chunks.
-    let mut i = 0;
-    let mut acc = T::splat(0);
-    for chunk in middle.iter() {
-        let tmp = chunk.bitand(T::splat(0xc0)).cmp_eq_byte(0x80);
-        acc = acc.add(tmp);
-        i += 1;
-        if i == T::max_acc() {
-            i = 0;
-            inv_count += acc.sum_bytes();
-            acc = T::splat(0);
-        }
-    }
-    inv_count += acc.sum_bytes();
-
-    // Take care of unaligned bytes at the end.
-    for byte in end.iter() {
-        inv_count += ((byte & 0xC0) == 0x80) as usize;
-    }
-
-    text.len() - inv_count
+    inv_count
 }
 
 // /// Returns the alignment difference between the start of `bytes` and the
@@ -354,6 +278,8 @@ trait ByteChunk: Copy + Clone + std::fmt::Debug {
 
     /// Returns the sum of all bytes in the chunk.
     fn sum_bytes(&self) -> usize;
+
+    fn count_bits(&self) -> u32;
 }
 
 impl ByteChunk for usize {
@@ -462,14 +388,14 @@ impl ByteChunk for sse2::__m128i {
         std::mem::size_of::<sse2::__m128i>()
     }
 
-    // #[inline(always)]
-    // fn max_acc() -> usize {
-    //     255
-    // }
     #[inline(always)]
     fn max_acc() -> usize {
-        (256 / 8) - 1
+        255
     }
+    // #[inline(always)]
+    // fn max_acc() -> usize {
+    //     (256 / 8) - 1
+    // }
 
     #[inline(always)]
     fn splat(n: u8) -> Self {
@@ -551,17 +477,25 @@ impl ByteChunk for sse2::__m128i {
 
     #[inline(always)]
     fn sum_bytes(&self) -> usize {
-        const ONES: u64 = std::u64::MAX / 0xFF;
-        let tmp = unsafe { std::mem::transmute::<Self, (u64, u64)>(*self) };
-        let a = tmp.0.wrapping_mul(ONES) >> (7 * 8);
-        let b = tmp.1.wrapping_mul(ONES) >> (7 * 8);
-        (a + b) as usize
-        // unsafe {
-        //     let zero = sse2::_mm_setzero_si128();
-        //     let diff = sse2::_mm_sad_epu8(*self, zero);
-        //     let (low, high) = std::mem::transmute::<Self, (u64, u64)>(diff);
-        //     (low + high) as usize
-        // }
+        // const ONES: u64 = std::u64::MAX / 0xFF;
+        // let tmp = unsafe { std::mem::transmute::<Self, (u64, u64)>(*self) };
+        // let a = tmp.0.wrapping_mul(ONES) >> (7 * 8);
+        // let b = tmp.1.wrapping_mul(ONES) >> (7 * 8);
+        // (a + b) as usize
+        unsafe {
+            let zero = sse2::_mm_setzero_si128();
+            let diff = sse2::_mm_sad_epu8(*self, zero);
+            let (low, high) = std::mem::transmute::<Self, (u64, u64)>(diff);
+            (low + high) as usize
+        }
+    }
+
+    #[inline(always)]
+    fn count_bits(&self) -> u32 {
+        // sse2::_mm_popcnt_epi64(self)
+        // sse2::_mm_popcnt_epi8(self)
+        let (low, high) = unsafe { std::mem::transmute::<Self, (u64, u64)>(*self) };
+        low.count_ones() + high.count_ones()
     }
 }
 
