@@ -67,13 +67,38 @@ I think this might be slower? I'm not sure. Needs more benchmarking!
 For more detail, see [JumpRope API documentation](https://docs.rs/jumprope/latest/jumprope/struct.JumpRope.html)
 
 
+## Wchar conversion
+
+In some languages (notably Javascript, Java and C#) strings are measured by the number of 2-byte wchars needed when encoding the string using UTF16.
+
+This is awkward because its computationally difficult to convert between unicode character offsets and these wchar offsets. You can do it manually, but its an O(n) operation relative to the size of your string.
+
+Jumprope supports doing this conversion in `O(log n)` time, by adding extra indexing information to the skip list. This feature is disabled by default, because the extra bookkeeping slows down jumprope by about 15%.
+
+To use this feature, enable the `wchar_conversion` feature flag:
+
+```toml
+jumprope = { version = "0.5.0", features = ["wchar_conversion"] }
+```
+
+This feature flag enables a bunch of extra wchar-related methods for interacting with a document:
+
+- `rope.len_wchars() -> usize`: Return the length of the string in wchars.
+- `rope.chars_to_wchars(chars: usize) -> usize`: Convert a char offset to a wchar offset
+- `rope.wchars_to_chars(wchars: usize) -> usize`: Convert a wchar index back to a unicode character count
+- `rope.insert_at_wchar(pos_wchar: usize, content: &str)`: Insert `content` at the specified wchar offset
+- `rope.remove_at_wchar(range: Range<usize>)`: Remove the specified range, specified using wchar offsets
+- `rope.replace_at_wchar(range: Range<usize>, content: &str)`: Replace the specified range with `content`
+
+See [documentation on docs.rs](https://docs.rs/jumprope/latest/jumprope/struct.JumpRope.html) for more information about these methods.
+
+
 ## History / motivation
 
 This code is based on an older [skiplist based C rope library](https://github.com/josephg/librope) I wrote several years ago as an excuse to play with skip lists. It has a few notable differences:
 
 - Instead of simply being implemented as a skiplist, jumprope is a skiplist where each leaf node contains a [Gap Buffer](https://en.wikipedia.org/wiki/Gap_buffer).
 - Jumprope is faster. (See table below)
-- Jumprope does not (currently) support wchar conversion present in librope. This is something that may change in time, especially given how useful it is in a wasm context.
 
 
 ## Benchmarks

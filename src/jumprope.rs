@@ -355,7 +355,10 @@ impl JumpRope {
         self.head.nexts()[self.head.height as usize - 1].skip_chars
     }
 
-    /// String length in wide characters (as would be reported by javascript / C# / etc)
+    /// String length in wide characters (as would be reported by javascript / C# / etc).
+    ///
+    /// The byte length of this string when encoded to UTF16 will be exactly
+    /// `rope.len_wchars() * 2`.
     #[cfg(feature = "wchar_conversion")]
     pub fn len_wchars(&self) -> usize {
         let SkipEntry {
@@ -1195,6 +1198,7 @@ impl JumpRope {
         cursor.wchar_pos(self.head.height)
     }
 
+    /// Convert a wchar index back to a unicode character count
     pub fn wchars_to_chars(&self, wchars: usize) -> usize {
         let cursor = self.cursor_at_wchar(wchars, true);
         cursor.global_char_pos(self.head.height)
