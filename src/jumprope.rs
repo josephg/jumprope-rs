@@ -398,8 +398,8 @@ impl JumpRope {
                 } else {
                     #[cfg(feature = "wchar_conversion")] {
                         // Add on the wchar length at the current node.
-                        let pairs_here = en.str.count_surrogate_pairs(offset);
-                        if pairs_here > 0 {
+                        surrogate_pairs += en.str.count_surrogate_pairs(offset);
+                        if surrogate_pairs > 0 {
                             for entry in &mut iter.0[0..self.head.height as usize - 1] {
                                 entry.skip_pairs = surrogate_pairs - entry.skip_pairs;
                             }
