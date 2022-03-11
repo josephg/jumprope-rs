@@ -1190,12 +1190,12 @@ impl JumpRope {
 impl JumpRope {
     /// Convert from a unicode character count to a wchar index, like what you'd use in Javascript,
     /// Java or C#.
-    pub fn char_idx_to_wchar(&self, chars: usize) -> usize {
+    pub fn chars_to_wchars(&self, chars: usize) -> usize {
         let cursor = self.cursor_at_char(chars, true);
         cursor.wchar_pos(self.head.height)
     }
 
-    pub fn wchar_idx_to_chars(&self, wchars: usize) -> usize {
+    pub fn wchars_to_chars(&self, wchars: usize) -> usize {
         let cursor = self.cursor_at_wchar(wchars, true);
         cursor.global_char_pos(self.head.height)
     }
@@ -1238,5 +1238,16 @@ impl JumpRope {
         unsafe { self.del_at_cursor(&mut cursor, char_end - char_start); }
 
         debug_assert_eq!(cursor.wchar_pos(self.head.height), range.start);
+    }
+
+    /// Replace the characters in the specified wchar range with content.
+    pub fn replace_at_wchar(&mut self, range: Range<usize>, content: &str) {
+        // This is not optimized.
+        if !range.is_empty() {
+            self.remove_at_wchar(range.clone());
+        }
+        if !content.is_empty() {
+            self.insert_at_wchar(range.start, content);
+        }
     }
 }
