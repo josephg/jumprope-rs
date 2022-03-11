@@ -195,6 +195,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
         let mut rm_start_bytes = 0;
 
         let gap_chars = self.gap_start_chars as usize;
+        let gap_start_bytes = self.gap_start_bytes as usize;
         if pos <= gap_chars && pos+del_len >= gap_chars {
             if pos < gap_chars {
                 // Delete the bit from pos..gap.
@@ -205,7 +206,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
 
                 #[cfg(feature = "wchar_conversion")]
                 if !self.all_ascii {
-                    self.gap_start_surrogate_pairs -= count_utf16_surrogates_in_bytes(&self.data[rm_start_bytes..self.gap_start_bytes as usize]) as u16;
+                    self.gap_start_surrogate_pairs -= count_utf16_surrogates_in_bytes(&self.data[gap_start_bytes - rm_start_bytes..gap_start_bytes]) as u16;
                 }
 
                 del_len -= self.gap_start_chars as usize - pos;
@@ -264,6 +265,29 @@ impl<const LEN: usize> GapBuffer<LEN> {
 
     /// Calculate & return the number of surrogate pairs in `[0..char_pos]`
     #[cfg(feature = "wchar_conversion")]
+    pub(crate) fn count_chars_in_wchars(&self, wchar_pos: usize) -> usize {
+        if self.all_ascii { wchar_pos }
+        else {
+            let gap_chars = self.gap_start_chars as usize;
+            let gap_pairs = self.gap_start_surrogate_pairs as usize;
+            let gap_wchars = gap_chars + gap_pairs;
+
+            if wchar_pos == gap_wchars {
+                gap_chars
+            } else if wchar_pos < gap_wchars {
+                // In start.
+                if self.gap_start_surrogate_pairs == 0 { wchar_pos }
+                else {
+                    utf16_code_unit_to_char_idx(self.start_as_str(), wchar_pos)
+                }
+            } else {
+                // In end.
+                gap_chars + utf16_code_unit_to_char_idx(self.end_as_str(), wchar_pos - gap_wchars)
+            }
+        }
+    }
+
+    #[cfg(feature = "wchar_conversion")]
     pub(crate) fn count_surrogate_pairs(&self, char_pos: usize) -> usize {
         if self.all_ascii {
             0
@@ -278,10 +302,11 @@ impl<const LEN: usize> GapBuffer<LEN> {
                     count_utf16_surrogates_in_bytes(&self.data[..bytes])
                 }
             } else {
+                // Right stuff.
                 let bytes = self.int_str_get_byte_offset(self.end_as_str(), char_pos - gap_chars);
                 let base = (self.gap_start_bytes + self.gap_len) as usize;
                 let slice = &self.data[base..base + bytes];
-                count_utf16_surrogates_in_bytes(slice)
+                self.gap_start_surrogate_pairs as usize + count_utf16_surrogates_in_bytes(slice)
             }
         }
     }
