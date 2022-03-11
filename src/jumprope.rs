@@ -250,7 +250,9 @@ impl RopeCursor {
     fn move_within_node(&mut self, height: usize, by_chars: isize, #[cfg(feature = "wchar_conversion")] by_pairs: isize) {
         for e in &mut self.0[..height] {
             e.skip_chars = e.skip_chars.wrapping_add(by_chars as usize);
-            e.skip_pairs = e.skip_pairs.wrapping_add(by_pairs as usize);
+            #[cfg(feature = "wchar_conversion")] {
+                e.skip_pairs = e.skip_pairs.wrapping_add(by_pairs as usize);
+            }
         }
     }
 

@@ -195,6 +195,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
         let mut rm_start_bytes = 0;
 
         let gap_chars = self.gap_start_chars as usize;
+        #[cfg(feature = "wchar_conversion")]
         let gap_start_bytes = self.gap_start_bytes as usize;
         if pos <= gap_chars && pos+del_len >= gap_chars {
             if pos < gap_chars {
