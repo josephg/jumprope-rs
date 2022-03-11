@@ -8,7 +8,7 @@ repository = "https://github.com/josephg/jumprope-rs"
 license = "ISC OR Apache-2.0"
 
 [workspace]
-members = ["jumprope-wasm", "rope_benches"]
+members = ["jumprope-wasm", "rope_benches", "crdt-testdata"]
 
 [features]
 #default = ["ddos_protection", "wchar_conversion"]
@@ -21,9 +21,7 @@ rand = { version = "0.8", features = ["small_rng"] }
 
 [dev-dependencies]
 criterion = "0.3.5"
-flate2 = "1.0.22"
-serde = { version = "1.0.136", features = ["derive"] }
-serde_json = "1.0.79"
+crdt-testdata = { path = "./crdt-testdata" }
 
 [[bench]]
 name = "benches"
