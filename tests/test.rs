@@ -258,7 +258,7 @@ fn random_edits_wchar(seed: u64, verbose: bool) {
     // let mut rng = rand::thread_rng();
     let mut rng = SmallRng::seed_from_u64(seed);
 
-    for _i in 0..1000 {
+    for _i in 0..400 {
         if verbose { println!("{_i} s: '{s}'"); }
         // r.print();
         check(&r, s.as_str());
@@ -284,7 +284,7 @@ fn random_edits_wchar(seed: u64, verbose: bool) {
                          text.len(), text.chars().count(), text.chars().map(|c| c.len_utf16()).sum::<usize>());
             }
             r.insert_at_wchar(pos_wchar, text.as_str());
-            r.print();
+            // r.print();
             string_insert_at(&mut s, pos_chars, text.as_str());
         } else {
             // Delete
@@ -295,7 +295,7 @@ fn random_edits_wchar(seed: u64, verbose: bool) {
             }
 
             r.remove(pos..pos+dlen);
-            r.print();
+            // r.print();
             string_del_at(&mut s, pos, dlen);
         }
     }
@@ -303,9 +303,8 @@ fn random_edits_wchar(seed: u64, verbose: bool) {
 
 #[cfg(feature = "wchar_conversion")]
 #[test]
-#[ignore]
 fn fuzz_wchar_once() {
-    random_edits_wchar(222, true);
+    random_edits_wchar(223, false);
 }
 
 // Run with:

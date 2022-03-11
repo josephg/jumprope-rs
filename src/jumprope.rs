@@ -434,7 +434,7 @@ impl JumpRope {
 
         let mut offset = wchar_pos; // How many more chars to skip
 
-        let mut char_pos = 0;
+        let mut char_pos = 0; // Char pos from the start of the rope
 
         let mut iter = RopeCursor([SkipEntry::new(); MAX_HEIGHT+1]);
 
@@ -461,7 +461,7 @@ impl JumpRope {
                     height -= 1;
                 } else {
                     char_pos += en.str.count_chars_in_wchars(offset);
-                    for entry in &mut iter.0[0..height] {
+                    for entry in &mut iter.0[0..self.head.height as usize] {
                         let skip_chars = char_pos - entry.skip_chars;
                         entry.skip_chars = skip_chars;
                         entry.skip_pairs -= skip_chars;
@@ -1206,7 +1206,7 @@ impl JumpRope {
         pos_wchar = std::cmp::min(pos_wchar, self.len_wchars());
 
         let mut cursor = self.cursor_at_wchar(pos_wchar, true);
-        // dbg!(pos_wchar, &cursor);
+        // dbg!(pos_wchar, &cursor.0[0..3]);
         unsafe { self.insert_at_cursor(&mut cursor, contents); }
 
         debug_assert_eq!(
