@@ -119,6 +119,8 @@
 //! assert_eq!(rope, "🐻");
 //! ```
 
+#![cfg_attr(doc_cfg, feature(doc_cfg))]
+
 mod jumprope;
 mod gapbuffer;
 mod utils;

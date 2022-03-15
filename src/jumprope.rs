@@ -1189,6 +1189,8 @@ impl JumpRope {
     }
 }
 
+/// These methods are only available if the `wchar_conversion` feature is enabled.
+#[cfg_attr(doc_cfg, doc(cfg(feature = "wchar_conversion")))]
 #[cfg(feature = "wchar_conversion")]
 impl JumpRope {
     /// Convert from a unicode character count to a wchar index, like what you'd use in Javascript,
