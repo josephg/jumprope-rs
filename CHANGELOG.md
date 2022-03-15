@@ -1,3 +1,7 @@
+# 0.5.1
+
+- Only cosmetic (documentation) changes.
+
 # 0.5.0
 
 - Added support for wchar based indexing, behind a feature flag. (See documentation for details)
