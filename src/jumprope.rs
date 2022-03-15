@@ -1198,7 +1198,11 @@ impl JumpRope {
         cursor.wchar_pos(self.head.height)
     }
 
-    /// Convert a wchar index back to a unicode character count
+    /// Convert a wchar index back to a unicode character count.
+    ///
+    /// **NOTE:** This method's behaviour is undefined if the wchar offset is invalid. Eg, given a
+    /// rope with contents `𐆚` (a single character with wchar length 2), `wchars_to_chars(1)` is
+    /// undefined and may panic / change in future versions of diamond types.
     pub fn wchars_to_chars(&self, wchars: usize) -> usize {
         let cursor = self.cursor_at_wchar(wchars, true);
         cursor.global_char_pos(self.head.height)
@@ -1208,6 +1212,10 @@ impl JumpRope {
     /// This is compatible with NSString, Javascript, etc.
     ///
     /// Returns the insertion position in characters.
+    ///
+    /// **NOTE:** This method's behaviour is undefined if the wchar offset is invalid. Eg, given a
+    /// rope with contents `𐆚` (a single character with wchar length 2), `insert_at_wchar(1, ...)`
+    /// is undefined and may panic / change in future versions of diamond types.
     pub fn insert_at_wchar(&mut self, mut pos_wchar: usize, contents: &str) -> usize {
         pos_wchar = pos_wchar.min(self.len_wchars());
 
@@ -1225,6 +1233,10 @@ impl JumpRope {
 
     /// Remove items from the rope, specified by the passed range. The indexes are interpreted
     /// as wchar offsets (like you'd get in javascript / C# / etc).
+    ///
+    /// **NOTE:** This method's behaviour is undefined if the wchar offset is invalid. Eg, given a
+    /// rope with contents `𐆚` (a single character with wchar length 2), `remove_at_wchar(1..2)`
+    /// is undefined and may panic / change in future versions of diamond types.
     pub fn remove_at_wchar(&mut self, mut range: Range<usize>) {
         range.end = range.end.min(self.len_wchars());
         if range.is_empty() { return; }
@@ -1245,8 +1257,14 @@ impl JumpRope {
     }
 
     /// Replace the characters in the specified wchar range with content.
+    ///
+    /// **NOTE:** This method's behaviour is undefined if the wchar offset is invalid. Eg, given a
+    /// rope with contents `𐆚` (a single character with wchar length 2),
+    /// `replace_at_wchar(1..2, ...)` is undefined and may panic / change in future versions of
+    /// diamond types.
     pub fn replace_at_wchar(&mut self, range: Range<usize>, content: &str) {
-        // This is not optimized.
+        // TODO: Optimize this. This method should work similarly to replace(), where we create
+        // a single cursor and use it in both contexts.
         if !range.is_empty() {
             self.remove_at_wchar(range.clone());
         }
