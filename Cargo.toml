@@ -38,3 +38,7 @@ codegen-units = 1
 [profile.release.package.jumprope-wasm]
 #opt-level = "s"
 opt-level = 2
+
+
+[package.metadata.docs.rs]
+features = ["wchar_conversion"]

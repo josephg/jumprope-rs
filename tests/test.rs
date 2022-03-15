@@ -6,7 +6,7 @@ use rand::prelude::*;
 use std::cmp::min;
 use std::ops::Range;
 
-const UCHARS: [char; 23] = [
+const UNI_CHARS: [char; 23] = [
   'a', 'b', 'c', '1', '2', '3', ' ', '_', // ASCII
   '©', '¥', '½', // The Latin-1 suppliment (U+80 - U+ff)
   'Ύ', 'Δ', 'δ', 'Ϡ', // Greek (U+0370 - U+03FF)
@@ -17,18 +17,19 @@ const UCHARS: [char; 23] = [
 fn random_unicode_string(len: usize, rng: &mut SmallRng) -> String {
     let mut s = String::new();
     for _ in 0..len {
-        s.push(UCHARS[rng.gen_range(0 .. UCHARS.len())] as char);
+        s.push(UNI_CHARS[rng.gen_range(0 .. UNI_CHARS.len())] as char);
     }
     s
 }
 
-const CHARS: &[u8; 83] = b" ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()[]{}<>?,./";
+const ASCII_CHARS: &[u8; 83] = b" ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()[]{}<>?,./";
 
 // Gross. Find a way to reuse the code from random_unicode_string.
+#[allow(unused)]
 fn random_ascii_string(len: usize, rng: &mut SmallRng) -> String {
     let mut s = String::new();
     for _ in 0..len {
-        s.push(CHARS[rng.gen_range(0 .. CHARS.len())] as char);
+        s.push(ASCII_CHARS[rng.gen_range(0 .. ASCII_CHARS.len())] as char);
     }
     s
 }
@@ -128,13 +129,14 @@ fn really_long_ascii_string() {
     let mut rng = SmallRng::seed_from_u64(1234);
     let len = 2000;
     let s = random_ascii_string(len, &mut rng);
+    // let s = random_unicode_string(len, &mut rng);
 
     let mut r = JumpRope::from(s.as_str());
     check(&r, s.as_str());
 
     // Delete everything but the first and last characters
     r.remove(1..len - 1);
-    let expect = format!("{}{}", s.as_bytes()[0] as char, s.as_bytes()[len-1] as char);
+    let expect = format!("{}{}", s.chars().next().unwrap(), s.chars().rev().next().unwrap());
     check(&r, expect.as_str());
 }
 
