@@ -1,6 +1,6 @@
 [package]
 name = "jumprope"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["Joseph Gentle <me@josephg.com>"]
 edition = "2021"
 description = "Simple, fast rope (fancy string) library built on top of Skiplists"

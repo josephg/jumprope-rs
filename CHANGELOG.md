@@ -1,3 +1,7 @@
+# 0.5.2
+
+- Swapped from inlined string methods to [`str_indices`](https://crates.io/crates/str_indices)
+
 # 0.5.1
 
 - Only cosmetic (documentation) changes.
