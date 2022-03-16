@@ -12,7 +12,6 @@ ddos_protection = []
 
 [dependencies]
 wasm-bindgen = "0.2"
-ropey = "1.3"
 
 # Disable default-features to remove obsessive ddos protection by default to
 # reduce code size. (42kb -> 33kb). SmallRng is still plenty secure for most
