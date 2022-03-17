@@ -1,7 +1,7 @@
 use criterion::*;
 use crdt_testdata::*;
 
-use jumprope::JumpRope;
+use jumprope::{JumpRope, JumpRopeBuf};
 
 fn count_chars(s: &String) -> usize {
     s.chars().count()
@@ -111,6 +111,28 @@ fn realworld_benchmarks(c: &mut Criterion) {
 
                 // assert_eq!(test_data.end_content, rope.to_string());
 
+                assert_eq!(rope.len_bytes(), test_data.end_content.len());
+                black_box(rope.len_chars());
+            })
+        });
+
+        group.bench_function(BenchmarkId::new("buffered", name), |b| {
+            b.iter(|| {
+                let mut rope = JumpRopeBuf::new();
+                for op in merged.iter() {
+                    match op {
+                        Ins(pos, content) => {
+                            rope.insert(*pos, content);
+                        }
+                        Del(pos, del_span) => {
+                            rope.remove(*pos..*pos + *del_span);
+                        }
+                    }
+                }
+
+                // assert_eq!(test_data.end_content, rope.to_string());
+
+                let rope = rope.into_inner();
                 assert_eq!(rope.len_bytes(), test_data.end_content.len());
                 black_box(rope.len_chars());
             })

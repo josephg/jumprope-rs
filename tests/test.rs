@@ -142,7 +142,7 @@ fn really_long_ascii_string() {
 
 
 use std::ptr;
-use jumprope::JumpRope;
+use jumprope::{JumpRope, JumpRopeBuf};
 
 fn string_insert_at(s: &mut String, char_pos: usize, contents: &str) {
     // If you try to write past the end of the string for now I'll just write at the end.
@@ -333,5 +333,71 @@ fn fuzz_wchar_forever() {
     for seed in 0.. {
         if seed % 100 == 0 { println!("seed: {seed}"); }
         random_edits_wchar(seed, false);
+    }
+}
+
+
+fn random_edits_buffered(seed: u64, verbose: bool) {
+    let mut r = JumpRopeBuf::new();
+    let mut s = String::new();
+
+    // let mut rng = rand::thread_rng();
+    let mut rng = SmallRng::seed_from_u64(seed);
+
+    for _i in 0..400 {
+    // for _i in 0..19 {
+        if verbose { println!("{_i} s: '{s}'"); }
+        // r.print();
+
+        let len = s.chars().count();
+
+        // if _i == 1 {
+        //     println!("haaayyy");
+        // }
+        // println!("i {}: {}", i, len);
+
+        if len == 0 || (len < 1000 && rng.gen::<f32>() < 0.5) {
+            // Insert.
+            let pos = rng.gen_range(0..len+1);
+            // Sometimes generate strings longer than a single node to stress everything.
+            let text = random_unicode_string(rng.gen_range(0..20), &mut rng);
+            if verbose {
+                println!("Inserting '{text}' at char {pos} (Byte length: {}, char len: {}, wchar len: {})",
+                         text.len(), text.chars().count(),
+                         text.chars().map(|c| c.len_utf16()).sum::<usize>()
+                );
+            }
+
+            r.insert(pos, text.as_str());
+            string_insert_at(&mut s, pos, text.as_str());
+        } else {
+            // Delete
+            let pos = rng.gen_range(0..len);
+            let dlen = min(rng.gen_range(0..10), len - pos);
+            if verbose {
+                println!("Removing {dlen} characters at {pos}");
+            }
+
+            r.remove(pos..pos+dlen);
+            string_del_at(&mut s, pos, dlen);
+        }
+        // dbg!(&r);
+    }
+
+    let rope = r.into_inner();
+    check(&rope, s.as_str());
+}
+
+#[test]
+fn fuzz_buffered_once() {
+    random_edits_buffered(0, false);
+}
+
+#[test]
+#[ignore]
+fn fuzz_buffered_forever() {
+    for seed in 0.. {
+        if seed % 1000 == 0 { println!("seed: {seed}"); }
+        random_edits_buffered(seed, false);
     }
 }
