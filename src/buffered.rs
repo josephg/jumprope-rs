@@ -11,8 +11,20 @@ use Op::*;
 use crate::fast_str_tools::{char_to_byte_idx, count_chars};
 use crate::JumpRope;
 
-// #[derive(Debug, Clone)]
 pub struct JumpRopeBuf(RefCell<(JumpRope, BufferedOp)>);
+
+#[derive(Debug, Clone)]
+struct BufferedOp {
+    tag: Tag,
+    ins_content: String,
+    range: Range<usize>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Op<'a> {
+    Ins(usize, &'a str),
+    Del(usize, usize), // start, end.
+}
 
 impl Debug for JumpRopeBuf {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -24,22 +36,11 @@ impl Debug for JumpRopeBuf {
     }
 }
 
-#[derive(Debug, Clone)]
-struct BufferedOp {
-    tag: Tag,
-    ins_content: String,
-
-    // len: usize, // Either ins_content len or del_len.
-    // TODO: Alternately, replace range.
-    // del_length: usize,
-    // pos: usize,
-    range: Range<usize>,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Op<'a> {
-    Ins(usize, &'a str),
-    Del(usize, usize), // start, end.
+impl Clone for JumpRopeBuf {
+    fn clone(&self) -> Self {
+        let inner = self.0.borrow();
+        Self(RefCell::new((inner.0.clone(), inner.1.clone())))
+    }
 }
 
 impl BufferedOp {
@@ -48,8 +49,6 @@ impl BufferedOp {
             tag: Tag::Ins,
             ins_content: "".to_string(),
             range: Range::default(),
-            // len: 0,
-            // pos: 0
         }
     }
 
