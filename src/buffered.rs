@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::fmt::{Debug, Formatter};
 use std::ops::{DerefMut, Range};
 use Op::*;
-use crate::fast_str_tools::count_chars;
+use crate::fast_str_tools::{char_to_byte_idx, count_chars};
 use crate::JumpRope;
 
 // #[derive(Debug, Clone)]
@@ -83,23 +83,45 @@ impl BufferedOp {
             Ok(())
         } else {
             match (self.tag, op) {
-                (Tag::Ins, Op::Ins(pos, content)) => {
-                    if pos == self.range.end {
-                        // We can merge this.
-                        self.ins_content.push_str(content);
-                        self.range.end += count_chars(content);
-                        Ok(())
-                    } else { Err(()) }
+                (Tag::Ins, Op::Ins(pos, content)) if pos == self.range.end => {
+                    // We can merge this.
+                    self.ins_content.push_str(content);
+                    self.range.end += count_chars(content);
+                    Ok(())
                 }
-                (Tag::Del, Op::Del(start, end)) => {
+                (Tag::Ins, Op::Del(start, end)) if end == self.range.end && start >= self.range.start => {
+                    // We can merge if the delete trims the end of the insert. There's more complex
+                    // trimming we could do here, but anything too complex and we may as well just
+                    // let the rope handle it.
+                    if start == self.range.start {
+                        // Discard our local insert.
+                        self.ins_content.clear();
+                        self.range.end = self.range.start;
+                        Ok(())
+                    } else {
+                        // Trim from the end.
+                        let char_offset = start - self.range.start;
+
+                        let byte_offset = if self.range.len() == self.ins_content.len() {
+                            // If its all ascii, char offset == byte offset.
+                            char_offset
+                        } else {
+                            // TODO: Come up with a better way to calculate this.
+                            char_to_byte_idx(self.ins_content.as_str(), char_offset)
+                        };
+
+                        self.range.end = start;
+                        self.ins_content.truncate(byte_offset);
+                        Ok(())
+                    }
+                }
+                (Tag::Del, Op::Del(start, end)) if start <= self.range.start && end >= self.range.start => {
                     // We can merge if our delete is inside the operation.
                     // let self_len = self.range.len();
-                    if start <= self.range.start && end >= self.range.start {
-                        // dbg!(&self.range, (start, end));
-                        self.range.end += end - self.range.start;
-                        self.range.start = start;
-                        Ok(())
-                    } else { Err(()) }
+                    // dbg!(&self.range, (start, end));
+                    self.range.end += end - self.range.start;
+                    self.range.start = start;
+                    Ok(())
                 }
                 (_, _) => Err(()),
             }
