@@ -73,7 +73,11 @@ fn realworld_benchmarks(c: &mut Criterion) {
         let merged = collapse(&test_data);
         assert_eq!(test_data.start_content.len(), 0);
 
-        group.throughput(Throughput::Elements(test_data.len() as u64));
+        let len = test_data.txns.iter()
+            .flat_map(|txn| txn.patches.iter() )
+            .map(|patch| patch.1 + patch.2.len())
+            .sum::<usize>();
+        group.throughput(Throughput::Elements(len as u64));
 
         group.bench_function(BenchmarkId::new("direct", name), |b| {
             b.iter(|| {
@@ -95,26 +99,26 @@ fn realworld_benchmarks(c: &mut Criterion) {
             })
         });
 
-        group.bench_function(BenchmarkId::new("merged", name), |b| {
-            b.iter(|| {
-                let mut rope = JumpRope::new();
-                for op in merged.iter() {
-                    match op {
-                        Ins(pos, content) => {
-                            rope.insert(*pos, content);
-                        }
-                        Del(pos, del_span) => {
-                            rope.remove(*pos..*pos + *del_span);
-                        }
-                    }
-                }
-
-                // assert_eq!(test_data.end_content, rope.to_string());
-
-                assert_eq!(rope.len_bytes(), test_data.end_content.len());
-                black_box(rope.len_chars());
-            })
-        });
+        // group.bench_function(BenchmarkId::new("merged", name), |b| {
+        //     b.iter(|| {
+        //         let mut rope = JumpRope::new();
+        //         for op in merged.iter() {
+        //             match op {
+        //                 Ins(pos, content) => {
+        //                     rope.insert(*pos, content);
+        //                 }
+        //                 Del(pos, del_span) => {
+        //                     rope.remove(*pos..*pos + *del_span);
+        //                 }
+        //             }
+        //         }
+        //
+        //         // assert_eq!(test_data.end_content, rope.to_string());
+        //
+        //         assert_eq!(rope.len_bytes(), test_data.end_content.len());
+        //         black_box(rope.len_chars());
+        //     })
+        // });
 
         group.bench_function(BenchmarkId::new("buffered", name), |b| {
             b.iter(|| {

@@ -32,44 +32,52 @@ pub fn char_to_byte_idx(text: &str, char_idx: usize) -> usize {
     str_indices::chars::to_byte_idx(text, char_idx)
 }
 
-#[allow(unused)]
-#[inline(always)]
-fn char_to_byte_idx_naive(text: &[u8], char_idx: usize) -> usize {
-    let mut byte_count = 0;
-    let mut char_count = 0;
-
-    let mut i = 0;
-    while i < text.len() && char_count <= char_idx {
-        char_count += ((text[i] & 0xC0) != 0x80) as usize;
-        i += 1;
-    }
-    byte_count += i;
-
-    if byte_count == text.len() && char_count <= char_idx {
-        byte_count
-    } else {
-        byte_count - 1
-    }
-}
+// #[allow(unused)]
+// #[inline(always)]
+// fn char_to_byte_idx_naive(text: &[u8], char_idx: usize) -> usize {
+//     let mut byte_count = 0;
+//     let mut char_count = 0;
+//
+//     let mut i = 0;
+//     while i < text.len() && char_count <= char_idx {
+//         char_count += ((text[i] & 0xC0) != 0x80) as usize;
+//         i += 1;
+//     }
+//     byte_count += i;
+//
+//     if byte_count == text.len() && char_count <= char_idx {
+//         byte_count
+//     } else {
+//         byte_count - 1
+//     }
+// }
 
 /// Counts the utf16 surrogate pairs that would be in `text` if it were encoded
 /// as utf16.
 #[inline]
 pub(crate) fn count_utf16_surrogates(text: &str) -> usize {
-    count_utf16_surrogates_in_bytes(text.as_bytes())
+    str_indices::utf16::count_surrogates(text)
+    // count_utf16_surrogates_in_bytes(text.as_bytes())
 }
 
 #[inline]
 pub(crate) fn count_utf16_surrogates_in_bytes(text: &[u8]) -> usize {
-    // This is smaller and faster than the simd version in my tests.
-    let mut utf16_surrogate_count = 0;
-
-    for byte in text.iter() {
-        utf16_surrogate_count += ((byte & 0xf0) == 0xf0) as usize;
-    }
-
-    utf16_surrogate_count
+    unsafe { str_indices::utf16::count_surrogates(std::str::from_utf8_unchecked(text)) }
 }
+
+// This is an alternate naive method which may make sense later.
+// #[inline]
+// #[allow(unused)]
+// pub(crate) fn count_utf16_surrogates_in_bytes_naive(text: &[u8]) -> usize {
+//     // This is smaller and faster than the simd version in my tests.
+//     let mut utf16_surrogate_count = 0;
+//
+//     for byte in text.iter() {
+//         utf16_surrogate_count += ((byte & 0xf0) == 0xf0) as usize;
+//     }
+//
+//     utf16_surrogate_count
+// }
 
 #[inline(always)]
 #[allow(unused)]
