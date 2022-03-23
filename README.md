@@ -101,18 +101,27 @@ This code is based on an older [skiplist based C rope library](https://github.co
 - Jumprope is faster. (See table below)
 
 
+## Is this library stable? Why isn't this 1.0?
+
+The API should be stable at this point, but there's one more lingering bug before cutting 1.0:
+
+Jumprope currently fails under miri because of some uncomfortable aliasing rules. It *should* be fine. I think its correct in all situations. But I'd feel better about that if it passed. And having miri fail also means consumers of this library can't test *their* code with miri.
+
+Also the `JumpRopeBuf` API is unstable, and still subject to change.
+
+
 ## Benchmarks
 
 Running the [editing traces from crdt-benchmarks](https://github.com/josephg/crdt-benchmarks), jumprope is faster than any other library in cargo that I know of:
 
 Running on a single core of a Ryzen 5800X:
 
-| Dataset | Raw string | XiRope | Ropey | librope (C) | Jumprope |
-|---------|------------|--------|-------|-------------|----------|
-automerge-paper | 3908.13 ms | 518.75 ms | 25.16 ms | 16.28 ms | 6.66 ms
-rustcode | 569.44 ms | DNF | 4.71 ms | 3.93 ms | 1.66 ms
-sveltecomponent | 41.05 ms | 24.83 ms | 2.31 ms | 1.59 ms | 0.59 ms
-seph-blog1 | 1238.44 ms | DNF | 13.04 ms | 10.01 ms | 3.81 ms
+| Dataset         | Raw string | XiRope    | Ropey    | librope (C) | Jumprope |
+|-----------------|------------|-----------|----------|-------------|----------|
+| automerge-paper | 3908.13 ms | 518.75 ms | 25.16 ms | 16.28 ms    | 6.66 ms  |
+| rustcode        | 569.44 ms  | DNF       | 4.71 ms  | 3.93 ms     | 1.66 ms  |
+| sveltecomponent | 41.05 ms   | 24.83 ms  | 2.31 ms  | 1.59 ms     | 0.59 ms  |
+| seph-blog1      | 1238.44 ms | DNF       | 13.04 ms | 10.01 ms    | 3.81 ms  |
 
 Full criterion report is [here](https://home.seph.codes/public/rope_bench/report/).
 

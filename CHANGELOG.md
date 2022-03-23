@@ -1,6 +1,6 @@
 # 0.5.2
 
-- Swapped from inlined string methods to [`str_indices`](https://crates.io/crates/str_indices)
+- Swapped from inlined string methods to [`str_indices`](https://crates.io/crates/str_indices). Thanks @cessen!
 
 # 0.5.1
 
