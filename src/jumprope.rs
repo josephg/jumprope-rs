@@ -215,34 +215,35 @@ impl Node {
     }
 }
 
+/// Cursors are a bit weird, and they deserve an explanation.
+///
+/// Cursors express the location that an edit will happen. But because this is a skip list, when
+/// items are added or removed we need to not just splice in / remove elements, but also update:
+///
+/// - The next pointers of *previous* items
+/// - The index item. Each next pointer in a node names how many items are being "skipped over" by
+///   that pointer. Those "skipped over" counts need to be updated based on the change.
+///
+/// Anyway, to do all of this, a cursor names the item which *points to* the current location.
+///
+/// TODO: A cursor should store a PhantomData<Pin<&mut JumpRope>>.
 #[derive(Debug, Clone)]
 pub(crate) struct RopeCursor([SkipEntry; MAX_HEIGHT+1]);
 
 impl RopeCursor {
-    #[cfg(not(feature = "wchar_conversion"))]
-    fn update_offsets(&mut self, height: usize, by: isize) {
+    fn update_offsets(&mut self, height: usize, by_chars: isize, #[cfg(feature = "wchar_conversion")] by_pairs: isize) {
         for i in 0..height {
             unsafe {
                 // This is weird but makes sense when you realise the nexts in
                 // the cursor are pointers into the elements that have the
                 // actual pointers.
-                // Also adding a usize + isize is awful in rust :/
-                let skip = &mut (*self.0[i].node).nexts_mut()[i].skip_chars;
-                *skip = skip.wrapping_add(by as usize);
-            }
-        }
-    }
-    #[cfg(feature = "wchar_conversion")]
-    fn update_offsets_wchar(&mut self, height: usize, by_chars: isize, by_pairs: isize) {
-        for i in 0..height {
-            unsafe {
-                // This is weird but makes sense when you realise the nexts in
-                // the cursor are pointers into the elements that have the
-                // actual pointers.
+
                 // Also adding a usize + isize is awful in rust :/
                 let entry = &mut (*self.0[i].node).nexts_mut()[i];
                 entry.skip_chars = entry.skip_chars.wrapping_add(by_chars as usize);
-                entry.skip_pairs = entry.skip_pairs.wrapping_add(by_pairs as usize);
+                #[cfg(feature = "wchar_conversion")] {
+                    entry.skip_pairs = entry.skip_pairs.wrapping_add(by_pairs as usize);
+                }
             }
         }
     }
@@ -590,7 +591,7 @@ impl JumpRope {
             (*e).str.insert_in_gap(contents);
 
             #[cfg(feature = "wchar_conversion")] {
-                cursor.update_offsets_wchar(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
+                cursor.update_offsets(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
                 cursor.move_within_node(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
             }
             #[cfg(not(feature = "wchar_conversion"))] {
@@ -650,7 +651,7 @@ impl JumpRope {
             // .... aaaand update all the offset amounts.
 
             #[cfg(feature = "wchar_conversion")] {
-                cursor.update_offsets_wchar(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
+                cursor.update_offsets(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
                 cursor.move_within_node(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
             }
             #[cfg(not(feature = "wchar_conversion"))] {
@@ -679,7 +680,7 @@ impl JumpRope {
                 #[cfg(feature = "wchar_conversion")] {
                     num_end_pairs = (*e).num_surrogate_pairs() - (*e).str.gap_start_surrogate_pairs as usize;
                     debug_assert_eq!(num_end_pairs, count_utf16_surrogates(end_str));
-                    cursor.update_offsets_wchar(head_height, -(num_end_chars as isize), -(num_end_pairs as isize));
+                    cursor.update_offsets(head_height, -(num_end_chars as isize), -(num_end_pairs as isize));
                 }
                 #[cfg(not(feature = "wchar_conversion"))]
                 cursor.update_offsets(head_height, -(num_end_chars as isize));

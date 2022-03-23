@@ -207,7 +207,9 @@ impl<const LEN: usize> GapBuffer<LEN> {
 
                 #[cfg(feature = "wchar_conversion")]
                 if !self.all_ascii {
-                    self.gap_start_surrogate_pairs -= count_utf16_surrogates_in_bytes(&self.data[gap_start_bytes - rm_start_bytes..gap_start_bytes]) as u16;
+                    self.gap_start_surrogate_pairs -= unsafe {
+                        count_utf16_surrogates_in_bytes(&self.data[gap_start_bytes - rm_start_bytes..gap_start_bytes]) as u16
+                    }
                 }
 
                 del_len -= self.gap_start_chars as usize - pos;
@@ -300,14 +302,14 @@ impl<const LEN: usize> GapBuffer<LEN> {
                 if self.gap_start_surrogate_pairs == 0 { 0 }
                 else {
                     let bytes = self.int_str_get_byte_offset(self.start_as_str(), char_pos);
-                    count_utf16_surrogates_in_bytes(&self.data[..bytes])
+                    unsafe { count_utf16_surrogates_in_bytes(&self.data[..bytes]) }
                 }
             } else {
                 // Right stuff.
                 let bytes = self.int_str_get_byte_offset(self.end_as_str(), char_pos - gap_chars);
                 let base = (self.gap_start_bytes + self.gap_len) as usize;
                 let slice = &self.data[base..base + bytes];
-                self.gap_start_surrogate_pairs as usize + count_utf16_surrogates_in_bytes(slice)
+                unsafe { self.gap_start_surrogate_pairs as usize + count_utf16_surrogates_in_bytes(slice) }
             }
         }
     }

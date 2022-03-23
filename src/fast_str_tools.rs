@@ -60,9 +60,11 @@ pub(crate) fn count_utf16_surrogates(text: &str) -> usize {
     // count_utf16_surrogates_in_bytes(text.as_bytes())
 }
 
+/// SAFETY: Passed text array must be a valid UTF8 string. This will not be checked at runtime.
 #[inline]
-pub(crate) fn count_utf16_surrogates_in_bytes(text: &[u8]) -> usize {
-    unsafe { str_indices::utf16::count_surrogates(std::str::from_utf8_unchecked(text)) }
+#[cfg(feature = "wchar_conversion")]
+pub(crate) unsafe fn count_utf16_surrogates_in_bytes(text: &[u8]) -> usize {
+    str_indices::utf16::count_surrogates(std::str::from_utf8_unchecked(text))
 }
 
 // This is an alternate naive method which may make sense later.
