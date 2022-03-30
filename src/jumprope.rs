@@ -305,7 +305,7 @@ impl JumpRope {
     /// Note using this method in wasm significantly increases bundle size. Use
     /// [`new_with_seed`](Self::new_from_seed) instead.
     pub fn new() -> Self {
-        if cfg!(test) || cfg!(debug_assertions) {
+        if cfg!(test) || cfg!(debug_assertions) || !cfg!(feature = "ddos_protection") {
             Self::new_from_seed(123)
         } else {
             Self::new_from_entropy()
