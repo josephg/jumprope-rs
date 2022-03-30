@@ -1,3 +1,7 @@
+# 0.5.3
+
+- Made Jumprope::new() use a hardcoded seed when ddos_protection is disabled. This makes the module 5kb smaller in wasm and avoids getrandom.
+
 # 0.5.2
 
 - Swapped from inlined string methods to [`str_indices`](https://crates.io/crates/str_indices). Thanks @cessen!
