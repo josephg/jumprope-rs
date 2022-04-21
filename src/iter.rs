@@ -213,10 +213,9 @@ impl JumpRope {
     /// assert_eq!(string, "Greetings!");
     /// ```
     pub fn slice_chunks(&self, range: Range<usize>) -> ContentRangeIter {
-        let cursor = self.old_cursor_at_char(range.start, false);
-        let node = unsafe { cursor.here_ptr().as_ref().unwrap() };
-        let node_gap_start = node.str.gap_start_chars as usize;
-        let local_pos = cursor.local_char_pos();
+        let cursor = self.read_cursor_at_char(range.start, false).0;
+        let node_gap_start = cursor.node.str.gap_start_chars as usize;
+        let local_pos = cursor.offset_chars;
 
         let (at_start, skip) = if local_pos >= node_gap_start {
             (false, local_pos - node_gap_start)
@@ -226,7 +225,7 @@ impl JumpRope {
 
         ContentRangeIter {
             inner: RawContentIter {
-                next: Some(node), at_start
+                next: Some(cursor.node), at_start
             },
             skip,
             take_len: range.end - range.start
