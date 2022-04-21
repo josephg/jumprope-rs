@@ -29,7 +29,27 @@ pub fn byte_to_char_idx(text: &str, byte_idx: usize) -> usize {
 /// Runs in O(N) time.
 #[inline]
 pub fn char_to_byte_idx(text: &str, char_idx: usize) -> usize {
-    str_indices::chars::to_byte_idx(text, char_idx)
+    if cfg!(not(miri)) {
+        str_indices::chars::to_byte_idx(text, char_idx)
+    } else {
+        // Naive version.
+        let mut byte_count = 0;
+        let mut char_count = 0;
+
+        let mut i = 0;
+        let text = text.as_bytes();
+        while i < text.len() && char_count <= char_idx {
+            char_count += ((text[i] & 0xC0) != 0x80) as usize;
+            i += 1;
+        }
+        byte_count += i;
+
+        if byte_count == text.len() && char_count <= char_idx {
+            byte_count
+        } else {
+            byte_count - 1
+        }
+    }
 }
 
 // #[allow(unused)]
@@ -128,13 +148,17 @@ pub(crate) fn count_chars(text: &str) -> usize {
 #[inline]
 pub(crate) fn count_chars_in_bytes(text: &[u8]) -> usize {
     if text.len() <= 1 { text.len() }
-    else { unsafe { str_indices::chars::count(std::str::from_utf8_unchecked(text)) } }
-    // Smaller and faster than the version in str_indexes version.
-    // let mut inv_count = 0;
-    // for byte in text.iter() {
-    //     inv_count += ((byte & 0xC0) != 0x80) as usize;
-    // }
-    // inv_count
+    else {
+        if cfg!(not(miri)) {
+            unsafe { str_indices::chars::count(std::str::from_utf8_unchecked(text)) }
+        } else {
+            let mut inv_count = 0;
+            for byte in text.iter() {
+                inv_count += ((byte & 0xC0) != 0x80) as usize;
+            }
+            inv_count
+        }
+    }
 }
 
 #[cfg(test)]

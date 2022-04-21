@@ -103,6 +103,10 @@ impl<'a> MutCursor<'a> {
             (*self.inner.0[MAX_HEIGHT].node).height = new_height as u8
         }
     }
+
+    fn is_head(&self, ptr: *const Node) -> bool {
+        std::ptr::eq(ptr, self.inner.0[MAX_HEIGHT].node)
+    }
 }
 
 #[repr(C)] // Prevent parameter reordering.
@@ -285,6 +289,7 @@ impl Node {
 #[derive(Debug, Clone)]
 pub(crate) struct RopeCursor([SkipEntry; MAX_HEIGHT+1]);
 
+// TODO: Move these methods to MutCursor.
 impl RopeCursor {
     fn update_offsets(&mut self, height: usize, by_chars: isize, #[cfg(feature = "wchar_conversion")] by_pairs: isize) {
         for i in 0..height {
@@ -625,93 +630,8 @@ impl JumpRope {
         }
     }
 
-    // fn old_cursor_at_start(&self) -> RopeCursor {
-    //     RopeCursor([SkipEntry {
-    //         node: &self.head as *const _ as *mut _,
-    //         skip_chars: 0,
-    //         #[cfg(feature = "wchar_conversion")]
-    //         skip_pairs: 0,
-    //     }; MAX_HEIGHT+1])
-    // }
-
-    fn cursor_at_end(&self) -> RopeCursor {
-        self.old_cursor_at_char(self.len_chars(), true)
-    }
-
-    // Internal fn to create a new node at the specified iterator filled with the specified
-    // content.
-    unsafe fn old_insert_node_at(&mut self, cursor: &mut RopeCursor, contents: &str, num_chars: usize, update_cursor: bool, #[cfg(feature = "wchar_conversion")] num_pairs: usize) {
-        // println!("Insert_node_at {} len {}", contents.len(), self.num_bytes);
-        // assert!(contents.len() < NODE_STR_SIZE);
-        debug_assert_eq!(count_chars(contents), num_chars);
-        #[cfg(feature = "wchar_conversion")] {
-            debug_assert_eq!(count_utf16_surrogates(contents), num_pairs);
-        }
-        debug_assert!(num_chars <= NODE_STR_SIZE);
-
-        // TODO: Pin this sucka.
-        // let new_node = Pin::new(Node::alloc());
-        // let new_node = Node::alloc(&mut self.rng, contents);
-
-        let new_height = random_height(&mut self.rng);
-        let new_node = Box::into_raw(Box::new(Node::new_with_height(new_height, contents)));
-
-        // (*new_node).num_bytes = contents.len() as u8;
-        // (*new_node).str[..contents.len()].copy_from_slice(contents.as_bytes());
-
-        let new_height = new_height as usize; // for convenience.
-        // let new_height = (*new_node).height as usize;
-
-        let mut head_height = self.head.height as usize;
-        while head_height <= new_height {
-            // TODO: Why do we copy here? Explain it in a comment. This is
-            // currently lifted from the C code.
-            self.head.nexts[head_height] = self.head.nexts[head_height - 1];
-            cursor.0[head_height] = cursor.0[head_height - 1];
-
-            self.head.height += 1; // Ends up 1 more than the max node height.
-            head_height += 1;
-        }
-
-        for i in 0..new_height {
-            let prev_skip = &mut (*cursor.0[i].node).nexts_mut()[i];
-            let nexts = (*new_node).nexts_mut();
-            nexts[i].node = prev_skip.node;
-            nexts[i].skip_chars = num_chars + prev_skip.skip_chars - cursor.0[i].skip_chars;
-
-            prev_skip.node = new_node;
-            prev_skip.skip_chars = cursor.0[i].skip_chars;
-
-            #[cfg(feature = "wchar_conversion")] {
-                nexts[i].skip_pairs = num_pairs + prev_skip.skip_pairs - cursor.0[i].skip_pairs;
-                prev_skip.skip_pairs = cursor.0[i].skip_pairs;
-            }
-
-            // & move the iterator to the end of the newly inserted node.
-            if update_cursor {
-                cursor.0[i].node = new_node;
-                cursor.0[i].skip_chars = num_chars;
-                #[cfg(feature = "wchar_conversion")] {
-                    cursor.0[i].skip_pairs = num_pairs;
-                }
-            }
-        }
-
-        for i in new_height..head_height {
-            (*cursor.0[i].node).nexts_mut()[i].skip_chars += num_chars;
-            #[cfg(feature = "wchar_conversion")] {
-                (*cursor.0[i].node).nexts_mut()[i].skip_pairs += num_pairs;
-            }
-            if update_cursor {
-                cursor.0[i].skip_chars += num_chars;
-                #[cfg(feature = "wchar_conversion")] {
-                    cursor.0[i].skip_pairs += num_pairs;
-                }
-            }
-        }
-
-        // self.nexts[self.head.height as usize - 1].skip_chars += num_chars;
-        self.num_bytes += contents.len();
+    fn mut_cursor_at_end(&mut self) -> MutCursor {
+        self.mut_cursor_at_char(self.len_chars(), true)
     }
 
     fn insert_node_at(cursor: &mut MutCursor, contents: &str, num_chars: usize, update_cursor: bool, #[cfg(feature = "wchar_conversion")] num_pairs: usize) {
@@ -761,8 +681,8 @@ impl JumpRope {
             prev_skip.skip_chars = cursor.inner.0[i].skip_chars;
 
             #[cfg(feature = "wchar_conversion")] {
-                nexts[i].skip_pairs = num_pairs + prev_skip.skip_pairs - cursor.0[i].skip_pairs;
-                prev_skip.skip_pairs = cursor.0[i].skip_pairs;
+                nexts[i].skip_pairs = num_pairs + prev_skip.skip_pairs - cursor.inner.0[i].skip_pairs;
+                prev_skip.skip_pairs = cursor.inner.0[i].skip_pairs;
             }
 
             // & move the iterator to the end of the newly inserted node.
@@ -770,21 +690,23 @@ impl JumpRope {
                 cursor.inner.0[i].node = new_node;
                 cursor.inner.0[i].skip_chars = num_chars;
                 #[cfg(feature = "wchar_conversion")] {
-                    cursor.0[i].skip_pairs = num_pairs;
+                    cursor.inner.0[i].skip_pairs = num_pairs;
                 }
             }
         }
 
         for i in new_height..head_height {
             // I don't know why miri needs me to use nexts[] rather than nexts_mut() here but ??.
-            unsafe { (*cursor.inner.0[i].node).nexts[i].skip_chars += num_chars; }
-            #[cfg(feature = "wchar_conversion")] {
-                (*cursor.0[i].node).nexts_mut()[i].skip_pairs += num_pairs;
+            unsafe {
+                (*cursor.inner.0[i].node).nexts[i].skip_chars += num_chars;
+                #[cfg(feature = "wchar_conversion")] {
+                    (*cursor.inner.0[i].node).nexts[i].skip_pairs += num_pairs;
+                }
             }
             if update_cursor {
                 cursor.inner.0[i].skip_chars += num_chars;
                 #[cfg(feature = "wchar_conversion")] {
-                    cursor.0[i].skip_pairs += num_pairs;
+                    cursor.inner.0[i].skip_pairs += num_pairs;
                 }
             }
         }
@@ -880,8 +802,8 @@ impl JumpRope {
                 // .... aaaand update all the offset amounts.
 
                 #[cfg(feature = "wchar_conversion")] {
-                    cursor.update_offsets(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
-                    cursor.move_within_node(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
+                    cursor.inner.update_offsets(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
+                    cursor.inner.move_within_node(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
                 }
                 #[cfg(not(feature = "wchar_conversion"))] {
                     cursor.inner.update_offsets(head_height, num_inserted_chars as isize);
@@ -909,7 +831,7 @@ impl JumpRope {
 
                     #[cfg(feature = "wchar_conversion")] {
                         num_end_pairs = (*e).num_surrogate_pairs() - (*e).str.gap_start_surrogate_pairs as usize;
-                        debug_assert_eq!(num_end_pairs, count_utf16_surrogates(end_str));
+                        debug_assert_eq!(num_end_pairs, count_utf16_surrogates((*e).str.end_as_str()));
                         cursor.inner.update_offsets(head_height, -(num_end_chars as isize), -(num_end_pairs as isize));
                     }
                     #[cfg(not(feature = "wchar_conversion"))]
@@ -973,249 +895,74 @@ impl JumpRope {
         }
     }
 
-    unsafe fn old_insert_at_cursor(&mut self, cursor: &mut RopeCursor, contents: &str) {
-        if contents.is_empty() { return; }
-        // iter contains how far (in characters) into the current element to
-        // skip. Figure out how much that is in bytes.
-        let mut offset_bytes: usize = 0;
-        // The insertion offset into the destination node.
-        let offset_chars: usize = cursor.0[0].skip_chars;
-        let mut e = cursor.here_ptr();
-
-        let head_height = self.head.height as usize;
-
-        // We might be able to insert the new data into the current node, depending on
-        // how big it is. We'll count the bytes, and also check that its valid utf8.
-        let num_inserted_bytes = contents.len();
-        let mut num_inserted_chars = count_chars(contents);
-        #[cfg(feature = "wchar_conversion")]
-        let mut num_inserted_pairs = if num_inserted_bytes != num_inserted_chars {
-            count_utf16_surrogates(contents)
-        } else { 0 };
-
-        // Adding this short circuit makes the code about 2% faster for 1% more code
-        if (*e).str.gap_start_chars as usize == offset_chars && (*e).str.gap_len as usize >= num_inserted_bytes {
-            // Short circuit. If we can just insert all the content right here in the gap, do so.
-            (*e).str.insert_in_gap(contents);
-
-            #[cfg(feature = "wchar_conversion")] {
-                cursor.update_offsets(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
-                cursor.move_within_node(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
-            }
-            #[cfg(not(feature = "wchar_conversion"))] {
-                cursor.update_offsets(head_height, num_inserted_chars as isize);
-                cursor.move_within_node(head_height, num_inserted_chars as isize);
-            }
-
-            self.num_bytes += num_inserted_bytes;
-            return;
-        }
-
-        if offset_chars > 0 {
-            // Changing this to debug_assert reduces performance by a few % for some reason.
-            assert!(offset_chars <= (*e).nexts()[0].skip_chars);
-            // This could be faster, but its not a big deal.
-            offset_bytes = (*e).str.count_bytes(offset_chars);
-        }
-
-        // Can we insert into the current node?
-        let current_len_bytes = (*e).str.len_bytes();
-        let mut insert_here = current_len_bytes + num_inserted_bytes <= NODE_STR_SIZE;
-
-        // If we can't insert here, see if we can move the cursor forward and insert into the
-        // subsequent node.
-        if !insert_here && offset_bytes == current_len_bytes {
-            // We can insert into the subsequent node if:
-            // - We can't insert into the current node
-            // - There _is_ a next node to insert into
-            // - The insert would be at the start of the next node
-            // - There's room in the next node
-            if let Some(next) = (*e).first_next_mut().node.as_mut() {
-                if next.str.len_bytes() + num_inserted_bytes <= NODE_STR_SIZE {
-                    offset_bytes = 0;
-
-                    // Could do this with slice::fill but this seems slightly faster.
-                    for e in &mut cursor.0[..next.height as usize] {
-                        *e = SkipEntry {
-                            node: next,
-                            skip_chars: 0,
-                            #[cfg(feature = "wchar_conversion")]
-                            skip_pairs: 0
-                        };
-                    }
-                    e = next;
-
-                    insert_here = true;
-                }
-            }
-        }
-
-        if insert_here {
-            // First move the current bytes later on in the string.
-            let c = &mut (*e).str;
-            c.try_insert(offset_bytes, contents).unwrap();
-
-            self.num_bytes += num_inserted_bytes;
-            // .... aaaand update all the offset amounts.
-
-            #[cfg(feature = "wchar_conversion")] {
-                cursor.update_offsets(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
-                cursor.move_within_node(head_height, num_inserted_chars as isize, num_inserted_pairs as isize);
-            }
-            #[cfg(not(feature = "wchar_conversion"))] {
-                cursor.update_offsets(head_height, num_inserted_chars as isize);
-                cursor.move_within_node(head_height, num_inserted_chars as isize);
-            }
-        } else {
-            // There isn't room. We'll need to add at least one new node to the rope.
-
-            // If we're not at the end of the current node, we'll need to remove
-            // the end of the current node's data and reinsert it later.
-            (*e).str.move_gap(offset_bytes);
-
-            let num_end_bytes = (*e).str.len_bytes() - offset_bytes;
-            let mut num_end_chars: usize = 0;
-            #[cfg(feature = "wchar_conversion")]
-            let mut num_end_pairs: usize = 0;
-            let end_str = if num_end_bytes > 0 {
-                // We'll truncate the node, but leave the bytes themselves there (for later).
-
-                // It would also be correct (and slightly more space efficient) to pack some of the
-                // new string's characters into this node after trimming it.
-                let end_str = (*e).str.take_rest();
-                num_end_chars = (*e).num_chars() - offset_chars;
-
-                #[cfg(feature = "wchar_conversion")] {
-                    num_end_pairs = (*e).num_surrogate_pairs() - (*e).str.gap_start_surrogate_pairs as usize;
-                    debug_assert_eq!(num_end_pairs, count_utf16_surrogates(end_str));
-                    cursor.update_offsets(head_height, -(num_end_chars as isize), -(num_end_pairs as isize));
-                }
-                #[cfg(not(feature = "wchar_conversion"))]
-                cursor.update_offsets(head_height, -(num_end_chars as isize));
-                self.num_bytes -= num_end_bytes;
-                Some(end_str)
-            } else {
-                // TODO: Don't just skip. Append as many characters as we can here.
-                None
-            };
-
-            // Now we insert new nodes containing the new character data. The
-            // data must be broken into pieces of with a maximum size of
-            // NODE_STR_SIZE. Node boundaries must not occur in the middle of a
-            // utf8 codepoint.
-            // let mut str_offset: usize = 0;
-            let mut remainder = contents;
-            // while !remainder.is_empty() {
-            loop {
-                // println!(". {}", remainder);
-                // Find the first index after STR_SIZE bytes
-
-                if remainder.len() <= NODE_STR_SIZE {
-                    self.old_insert_node_at(cursor, remainder, num_inserted_chars, true, #[cfg(feature = "wchar_conversion")] num_inserted_pairs);
-                    break;
-
-                } else {
-                    // Find a suitable cut point. We should take as many characters as we can fit in
-                    // the node, without splitting any unicode codepoints.
-                    let mut byte_pos = NODE_STR_SIZE;
-                    loop { // Slide back to a character boundary.
-                        let c = remainder.as_bytes()[byte_pos];
-                        if c & 0b1100_0000 != 0b1000_0000 {
-                            break;
-                        }
-                        byte_pos -= 1;
-                    }
-
-                    let slice = &remainder.as_bytes()[..byte_pos];
-                    let char_pos = count_chars_in_bytes(slice);
-                    num_inserted_chars -= char_pos;
-                    #[cfg(feature = "wchar_conversion")]
-                    let pairs = count_utf16_surrogates_in_bytes(slice);
-                    #[cfg(feature = "wchar_conversion")] {
-                        num_inserted_pairs -= pairs;
-                    }
-
-                    let (next, rem) = remainder.split_at(byte_pos);
-                    assert!(!next.is_empty());
-                    self.old_insert_node_at(cursor, next, char_pos, true, #[cfg(feature = "wchar_conversion")] pairs);
-                    remainder = rem;
-                }
-            }
-
-            if let Some(end_str) = end_str {
-                self.old_insert_node_at(cursor, end_str, num_end_chars, false, #[cfg(feature = "wchar_conversion")] num_end_pairs);
-            }
-        }
-
-        assert_ne!(cursor.local_char_pos(), 0);
-    }
-
-    unsafe fn del_at_cursor(&mut self, cursor: &mut RopeCursor, mut length: usize) {
+    fn del_at_cursor(cursor: &mut MutCursor, mut length: usize) {
         if length == 0 { return; }
-        let mut offset_chars = cursor.local_char_pos();
-        let mut node = cursor.here_ptr();
-        while length > 0 {
-            {
-                let s = (&*node).first_next();
-                if offset_chars == s.skip_chars {
-                    // End of current node. Skip to the start of the next one.
-                    node = s.node;
-                    offset_chars = 0;
+        let mut offset_chars = cursor.inner.local_char_pos();
+        let mut node = cursor.inner.here_ptr();
+        unsafe {
+            while length > 0 {
+                {
+                    let s = (&*node).first_next();
+                    if offset_chars == s.skip_chars {
+                        // End of current node. Skip to the start of the next one.
+                        node = s.node;
+                        offset_chars = 0;
+                    }
                 }
-            }
 
-            let num_chars = (&*node).num_chars();
-            let removed = std::cmp::min(length, num_chars - offset_chars);
-            assert!(removed > 0);
+                let num_chars = (&*node).num_chars();
+                let removed = std::cmp::min(length, num_chars - offset_chars);
+                assert!(removed > 0);
 
-            // TODO: Figure out a better way to calculate this.
-            #[cfg(feature = "wchar_conversion")]
-            let removed_pairs = (*node).str.count_surrogate_pairs(offset_chars + removed)
-                - (*node).str.count_surrogate_pairs(offset_chars);
+                // TODO: Figure out a better way to calculate this.
+                #[cfg(feature = "wchar_conversion")]
+                    let removed_pairs = (*node).str.count_surrogate_pairs(offset_chars + removed)
+                    - (*node).str.count_surrogate_pairs(offset_chars);
 
-            let height = (*node).height as usize;
-            if removed < num_chars || std::ptr::eq(node, &self.head) {
-                // Just trim the node down.
-                let s = &mut (*node).str;
-                let removed_bytes = s.remove_chars(offset_chars, removed);
-                self.num_bytes -= removed_bytes;
+                let height = (*node).height as usize;
+                if removed < num_chars || cursor.is_head(node) {
+                    // Just trim the node down.
+                    let s = &mut (*node).str;
+                    let removed_bytes = s.remove_chars(offset_chars, removed);
+                    *cursor.num_bytes -= removed_bytes;
 
-                for s in (*node).nexts_mut() {
+                    for s in (*node).nexts_mut() {
+                        s.skip_chars -= removed;
+                        #[cfg(feature = "wchar_conversion")] {
+                            s.skip_pairs -= removed_pairs;
+                        }
+                    }
+                } else {
+                    // Remove the node from the skip list. This works because the cursor must be
+                    // pointing from the previous element to the start of this element.
+                    assert_ne!(cursor.inner.0[0].node, node);
+
+                    for i in 0..(*node).height as usize {
+                        let s = &mut (*cursor.inner.0[i].node).nexts_mut()[i];
+                        s.node = (*node).nexts_mut()[i].node;
+                        s.skip_chars += (*node).nexts()[i].skip_chars - removed;
+                        #[cfg(feature = "wchar_conversion")] {
+                            s.skip_pairs += (*node).nexts()[i].skip_pairs - removed_pairs;
+                        }
+                    }
+
+                    *cursor.num_bytes -= (*node).str.len_bytes();
+                    let next = (*node).first_next().node;
+                    // Node::free(node);
+                    drop(Box::from_raw(node));
+                    node = next;
+                }
+
+                for i in height..cursor.height() {
+                    let s = &mut (*cursor.inner.0[i].node).nexts_mut()[i];
                     s.skip_chars -= removed;
                     #[cfg(feature = "wchar_conversion")] {
                         s.skip_pairs -= removed_pairs;
                     }
                 }
-            } else {
-                // Remove the node from the skip list. This works because the cursor must be
-                // pointing from the previous element to the start of this element.
-                assert_ne!(cursor.0[0].node, node);
 
-                for i in 0..(*node).height as usize {
-                    let s = &mut (*cursor.0[i].node).nexts_mut()[i];
-                    s.node = (*node).nexts_mut()[i].node;
-                    s.skip_chars += (*node).nexts()[i].skip_chars - removed;
-                    #[cfg(feature = "wchar_conversion")] {
-                        s.skip_pairs += (*node).nexts()[i].skip_pairs - removed_pairs;
-                    }
-                }
-
-                self.num_bytes -= (*node).str.len_bytes();
-                let next = (*node).first_next().node;
-                // Node::free(node);
-                drop(Box::from_raw(node));
-                node = next;
+                length -= removed;
             }
-
-            for i in height..self.head.height as usize {
-                let s = &mut (*cursor.0[i].node).nexts_mut()[i];
-                s.skip_chars -= removed;
-                #[cfg(feature = "wchar_conversion")] {
-                    s.skip_pairs -= removed_pairs;
-                }
-            }
-
-            length -= removed;
         }
     }
 
@@ -1352,9 +1099,9 @@ impl PartialEq<String> for &JumpRope {
 
 impl<'a> Extend<&'a str> for JumpRope {
     fn extend<T: IntoIterator<Item = &'a str>>(&mut self, iter: T) {
-        let mut cursor = self.cursor_at_end();
+        let mut cursor = self.mut_cursor_at_end();
         iter.into_iter().for_each(|s| {
-            unsafe { self.old_insert_at_cursor(&mut cursor, s); }
+            Self::insert_at_cursor(&mut cursor, s);
         });
     }
 }
@@ -1421,10 +1168,12 @@ impl JumpRope {
         if range.start >= range.end { return; }
 
         // We need to stick_end so we can delete entries.
-        let mut cursor = self.old_cursor_at_char(range.start, true);
-        unsafe { self.del_at_cursor(&mut cursor, range.end - range.start); }
+        let mut cursor = self.mut_cursor_at_char(range.start, true);
+        Self::del_at_cursor(&mut cursor, range.end - range.start);
+        // let mut cursor = self.old_cursor_at_char(range.start, true);
+        // unsafe { self.old_del_at_cursor(&mut cursor, range.end - range.start); }
 
-        debug_assert_eq!(cursor.global_char_pos(self.head.height), range.start);
+        debug_assert_eq!(cursor.inner.global_char_pos(self.head.height), range.start);
     }
 
     /// Replace the specified range with new content. This is equivalent to calling
@@ -1443,15 +1192,15 @@ impl JumpRope {
         let pos = usize::min(range.start, len);
         let del_len = usize::min(range.end, len) - pos;
 
-        let mut cursor = self.old_cursor_at_char(pos, true);
+        let mut cursor = self.mut_cursor_at_char(pos, true);
         if del_len > 0 {
-            unsafe { self.del_at_cursor(&mut cursor, del_len); }
+            Self::del_at_cursor(&mut cursor, del_len);
         }
         if !content.is_empty() {
-            unsafe { self.old_insert_at_cursor(&mut cursor, content); }
+            Self::insert_at_cursor(&mut cursor, content);
         }
 
-        debug_assert_eq!(cursor.global_char_pos(self.head.height), pos + count_chars(content));
+        debug_assert_eq!(cursor.inner.global_char_pos(self.head.height), pos + count_chars(content));
     }
 
     /// Get the number of bytes used for the UTF8 representation of the rope. This will always match
@@ -1669,7 +1418,7 @@ impl JumpRope {
         let mut cursor = self.cursor_at_wchar(range.start, true);
         let char_start = cursor.global_char_pos(self.head.height);
 
-        unsafe { self.del_at_cursor(&mut cursor, char_end - char_start); }
+        unsafe { self.old_del_at_cursor(&mut cursor, char_end - char_start); }
 
         debug_assert_eq!(cursor.wchar_pos(self.head.height), range.start);
     }
