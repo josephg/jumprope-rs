@@ -81,7 +81,6 @@ pub(crate) fn count_utf16_surrogates(text: &str) -> usize {
 
 /// SAFETY: Passed text array must be a valid UTF8 string. This will not be checked at runtime.
 #[inline]
-#[cfg(feature = "wchar_conversion")]
 pub(crate) unsafe fn count_utf16_surrogates_in_bytes(text: &[u8]) -> usize {
     if cfg!(miri) {
         // Naive version

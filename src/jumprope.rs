@@ -77,7 +77,6 @@ pub struct JumpRope {
     // list. The size is the size of the entire list.
 }
 
-#[repr(C)] // Prevent parameter reordering.
 pub(super) struct Node {
     // The first num_bytes of this store a valid utf8 string.
     // str: [u8; NODE_STR_SIZE],
@@ -91,10 +90,9 @@ pub(super) struct Node {
 
     // #[repr(align(std::align_of::<SkipEntry>()))]
 
-    // This array actually has the size of height; but we dynamically allocate the structure on the
-    // heap to avoid wasting memory.
-    // TODO: Honestly this memory saving is very small anyway. Reconsider this choice.
-    // nexts: [SkipEntry; 0],
+    // Only the first height items are used in this. Earlier versions made explicit allocator calls
+    // to reduce memory usage, but that makes miri quite sad, so I'm now just wasting some memory
+    // in each nexts[] array.
     nexts: [SkipEntry; MAX_HEIGHT+1],
 }
 
@@ -349,6 +347,10 @@ pub(crate) struct ReadCursor<'a> {
     // #[cfg(feature = "wchar_conversion")]
     // pub(super) offset_pairs: usize,
 
+    // This is a bit gross, but its useful.
+    #[cfg(feature = "wchar_conversion")]
+    global_pairs: usize,
+
     phantom: PhantomData<&'a JumpRope>
 }
 
@@ -455,7 +457,7 @@ impl JumpRope {
     /// Returns read cursor and global surrogate pair position.
     ///
     /// Surrogate pairs are only counted if wchar_conversion feature enabled.
-    pub(crate) fn read_cursor_at_char(&self, char_pos: usize, stick_end: bool) -> (ReadCursor<'_>, usize) {
+    pub(crate) fn read_cursor_at_char(&self, char_pos: usize, stick_end: bool) -> ReadCursor<'_> {
         assert!(char_pos <= self.len_chars());
 
         let mut e: *const Node = &self.head;
@@ -463,7 +465,8 @@ impl JumpRope {
 
         let mut offset_chars = char_pos; // How many more chars to skip
 
-        let mut surrogate_pairs = 0; // Current wchar pos from the start of the rope
+        #[cfg(feature = "wchar_conversion")]
+        let mut global_pairs = 0; // Current wchar pos from the start of the rope
 
         loop { // while height >= 0
             let en = unsafe { &*e };
@@ -474,7 +477,7 @@ impl JumpRope {
                 // debug_assert!(e == &self.head || !en.str.is_empty());
                 offset_chars -= skip;
                 #[cfg(feature = "wchar_conversion")] {
-                    surrogate_pairs += next.skip_pairs;
+                    global_pairs += next.skip_pairs;
                 }
                 e = next.node;
                 assert!(!e.is_null(), "Internal constraint violation: Reached rope end prematurely");
@@ -486,16 +489,18 @@ impl JumpRope {
                     #[cfg(feature = "wchar_conversion")]
                     let offset_pairs = en.str.count_surrogate_pairs(offset_chars);
                     #[cfg(feature = "wchar_conversion")] {
-                        surrogate_pairs += offset_pairs;
+                        global_pairs += offset_pairs;
                     }
 
-                    return (ReadCursor {
+                    return ReadCursor {
                         node: unsafe { &*e },
                         offset_chars,
                         // #[cfg(feature = "wchar_conversion")]
                         // offset_pairs,
                         phantom: PhantomData,
-                    }, surrogate_pairs)
+                        #[cfg(feature = "wchar_conversion")]
+                        global_pairs,
+                    }
                 }
             }
         };
@@ -1417,7 +1422,7 @@ impl JumpRope {
     /// Convert from a unicode character count to a wchar index, like what you'd use in Javascript,
     /// Java or C#.
     pub fn chars_to_wchars(&self, chars: usize) -> usize {
-        self.read_cursor_at_char(chars, true).1
+        self.read_cursor_at_char(chars, true).global_pairs
     }
 
     /// Convert a wchar index back to a unicode character count.
