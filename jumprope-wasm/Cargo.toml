@@ -8,7 +8,9 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["ddos_protection", "jumprope/wchar_conversion"]
-ddos_protection = []
+#default = ["ddos_protection"]
+#default = ["jumprope/wchar_conversion"]
+ddos_protection = ["jumprope/ddos_protection"]
 
 [dependencies]
 wasm-bindgen = "0.2"
