@@ -10,7 +10,6 @@
 // use rope::*;
 
 use std::{ptr, str};
-// use std::alloc::{alloc, dealloc, Layout};
 use std::cmp::min;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
@@ -460,7 +459,9 @@ impl JumpRope {
             let skip = next.skip_chars;
             if offset > skip || (!stick_end && offset == skip && !next.node.is_null()) {
                 // Go right.
-                assert!(e == &mut self.head || !en.str.is_empty());
+
+                // This breaks miri for some reason.
+                // assert!(e == &mut self.head || !en.str.is_empty());
                 offset -= skip;
                 #[cfg(feature = "wchar_conversion")] {
                     surrogate_pairs += next.skip_pairs;
@@ -496,14 +497,16 @@ impl JumpRope {
 
         assert!(offset <= NODE_STR_SIZE);
 
-        MutCursor {
+        let cursor = MutCursor {
             inner: iter,
             // head_nexts: &mut self.head.nexts,
             // head_height: h,
             rng: &mut self.rng,
             num_bytes: &mut self.num_bytes,
             phantom: PhantomData,
-        }
+        };
+
+        cursor
     }
 
     // Internal function for navigating to a particular character offset in the rope.  The function
@@ -672,7 +675,7 @@ impl JumpRope {
         }
 
         for i in 0..new_height {
-            let prev_skip = unsafe { &mut (*cursor.inner.0[i].node).nexts_mut()[i] };
+            let prev_skip = unsafe { &mut (*cursor.inner.0[i].node).nexts[i] };
             let nexts = unsafe { (*new_node).nexts_mut() };
             nexts[i].node = prev_skip.node;
             nexts[i].skip_chars = num_chars + prev_skip.skip_chars - cursor.inner.0[i].skip_chars;

@@ -235,6 +235,14 @@ fn random_edits(seed: u64, verbose: bool) {
             string_del_at(&mut s, pos, dlen);
         }
 
+        // Calling check() is super slow with miri, and it doesn't matter much so long as we test
+        // for correctness normally.
+        if !cfg!(miri) {
+            check(&r, s.as_str());
+        }
+    }
+
+    if cfg!(miri) {
         check(&r, s.as_str());
     }
 }
@@ -314,7 +322,9 @@ fn random_edits_wchar(seed: u64, verbose: bool) {
             s.drain(byte_range);
         }
 
-        check(&r, s.as_str());
+        if !cfg!(miri) {
+            check(&r, s.as_str());
+        }
     }
 }
 
