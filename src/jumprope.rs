@@ -294,9 +294,7 @@ impl RopeCursor {
                 // actual pointers.
 
                 // Also adding a usize + isize is awful in rust :/
-                let y = &mut (*self.0[i].node);
-                let x = y.nexts_mut();
-                let entry = &mut x[i];
+                let entry = &mut (*self.0[i].node).nexts_mut()[i];
                 entry.skip_chars = entry.skip_chars.wrapping_add(by_chars as usize);
                 #[cfg(feature = "wchar_conversion")] {
                     entry.skip_pairs = entry.skip_pairs.wrapping_add(by_pairs as usize);
@@ -778,7 +776,8 @@ impl JumpRope {
         }
 
         for i in new_height..head_height {
-            unsafe { (*cursor.inner.0[i].node).nexts_mut()[i].skip_chars += num_chars; }
+            // I don't know why miri needs me to use nexts[] rather than nexts_mut() here but ??.
+            unsafe { (*cursor.inner.0[i].node).nexts[i].skip_chars += num_chars; }
             #[cfg(feature = "wchar_conversion")] {
                 (*cursor.0[i].node).nexts_mut()[i].skip_pairs += num_pairs;
             }
@@ -900,27 +899,24 @@ impl JumpRope {
                 #[cfg(feature = "wchar_conversion")]
                 let mut num_end_pairs: usize = 0;
 
-                let end_str = if num_end_bytes > 0 {
+                // let end_str = if num_end_bytes > 0 {
+                if num_end_bytes > 0 {
                     // We'll truncate the node, but leave the bytes themselves there (for later).
 
                     // It would also be correct (and slightly more space efficient) to pack some of the
                     // new string's characters into this node after trimming it.
-                    let end_str = (*e).str.take_rest();
                     num_end_chars = (*e).num_chars() - offset_chars;
 
                     #[cfg(feature = "wchar_conversion")] {
                         num_end_pairs = (*e).num_surrogate_pairs() - (*e).str.gap_start_surrogate_pairs as usize;
                         debug_assert_eq!(num_end_pairs, count_utf16_surrogates(end_str));
-                        cursor.update_offsets(head_height, -(num_end_chars as isize), -(num_end_pairs as isize));
+                        cursor.inner.update_offsets(head_height, -(num_end_chars as isize), -(num_end_pairs as isize));
                     }
                     #[cfg(not(feature = "wchar_conversion"))]
                     cursor.inner.update_offsets(head_height, -(num_end_chars as isize));
+
                     *cursor.num_bytes -= num_end_bytes;
-                    Some(end_str)
-                } else {
-                    // TODO: Don't just skip. Append as many characters as we can here.
-                    None
-                };
+                }
 
                 // Now we insert new nodes containing the new character data. The
                 // data must be broken into pieces of with a maximum size of
@@ -964,9 +960,13 @@ impl JumpRope {
                     }
                 }
 
-                if let Some(end_str) = end_str {
+                if num_end_bytes > 0 {
+                    let end_str = (*e).str.take_rest();
                     Self::insert_node_at(cursor, end_str, num_end_chars, false, #[cfg(feature = "wchar_conversion")] num_end_pairs);
                 }
+                // if let Some(end_str) = end_str {
+                //     Self::insert_node_at(cursor, end_str, num_end_chars, false, #[cfg(feature = "wchar_conversion")] num_end_pairs);
+                // }
             }
 
             assert_ne!(cursor.inner.local_char_pos(), 0);
