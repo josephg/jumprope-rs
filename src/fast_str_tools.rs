@@ -76,22 +76,31 @@ pub fn char_to_byte_idx(text: &str, char_idx: usize) -> usize {
 /// as utf16.
 #[inline]
 pub(crate) fn count_utf16_surrogates(text: &str) -> usize {
-    str_indices::utf16::count_surrogates(text)
-    // count_utf16_surrogates_in_bytes(text.as_bytes())
+    unsafe { count_utf16_surrogates_in_bytes(text.as_bytes()) }
 }
 
 /// SAFETY: Passed text array must be a valid UTF8 string. This will not be checked at runtime.
 #[inline]
 #[cfg(feature = "wchar_conversion")]
 pub(crate) unsafe fn count_utf16_surrogates_in_bytes(text: &[u8]) -> usize {
-    str_indices::utf16::count_surrogates(std::str::from_utf8_unchecked(text))
+    if cfg!(miri) {
+        // Naive version
+        let mut utf16_surrogate_count = 0;
+
+        for byte in text.iter() {
+            utf16_surrogate_count += ((byte & 0xf0) == 0xf0) as usize;
+        }
+
+        utf16_surrogate_count
+    } else {
+        str_indices::utf16::count_surrogates(std::str::from_utf8_unchecked(text))
+    }
 }
 
 // This is an alternate naive method which may make sense later.
 // #[inline]
 // #[allow(unused)]
 // pub(crate) fn count_utf16_surrogates_in_bytes_naive(text: &[u8]) -> usize {
-//     // This is smaller and faster than the simd version in my tests.
 //     let mut utf16_surrogate_count = 0;
 //
 //     for byte in text.iter() {
