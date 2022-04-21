@@ -401,3 +401,16 @@ fn fuzz_buffered_forever() {
         random_edits_buffered(seed, false);
     }
 }
+
+#[test]
+fn eq_variants() {
+    let rope = JumpRope::from("Hi there");
+
+    assert_eq!(rope.clone(), "Hi there");
+    assert_eq!(rope.clone(), String::from("Hi there"));
+    assert_eq!(rope.clone(), &String::from("Hi there"));
+
+    assert_eq!(&rope, "Hi there");
+    assert_eq!(&rope, String::from("Hi there"));
+    assert_eq!(&rope, &String::from("Hi there"));
+}

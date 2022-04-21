@@ -919,17 +919,22 @@ impl Display for JumpRope {
 }
 
 // I don't know why I need all three of these, but I do.
+
+impl<T: AsRef<str>> PartialEq<T> for JumpRope {
+    fn eq(&self, other: &T) -> bool {
+        self.eq_str(other.as_ref())
+    }
+}
+
+// Needed for assert_eq!(&rope, "Hi there");
 impl PartialEq<str> for JumpRope {
     fn eq(&self, other: &str) -> bool {
         self.eq_str(other)
     }
 }
-impl PartialEq<&str> for JumpRope {
-    fn eq(&self, other: &&str) -> bool {
-        self.eq_str(*other)
-    }
-}
-impl PartialEq<String> for JumpRope {
+
+// Needed for assert_eq!(&rope, String::from("Hi there"));
+impl PartialEq<String> for &JumpRope {
     fn eq(&self, other: &String) -> bool {
         self.eq_str(other.as_str())
     }
