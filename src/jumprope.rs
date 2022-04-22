@@ -518,7 +518,19 @@ impl JumpRope {
         #[cfg(feature = "wchar_conversion")]
         let mut surrogate_pairs = 0; // Current wchar pos from the start of the rope
 
-        let mut cursor = self.mut_cursor_at_start();
+        // It would be nice to pop this into a function, but miri gets confused if we pass the node
+        // pointer out of this method. So I'm keeping this inline.
+        let mut cursor = MutCursor {
+            inner: [SkipEntry {
+                node: e,
+                skip_chars: 0,
+                #[cfg(feature = "wchar_conversion")]
+                skip_pairs: 0
+            }; MAX_HEIGHT+1],
+            rng: &mut self.rng,
+            num_bytes: &mut self.num_bytes,
+            phantom: PhantomData,
+        };
 
         loop { // while height >= 0
             let en = unsafe { &*e };
@@ -614,7 +626,17 @@ impl JumpRope {
 
         let mut char_pos = 0; // Char pos from the start of the rope
 
-        let mut cursor = self.mut_cursor_at_start();
+        let mut cursor = MutCursor {
+            inner: [SkipEntry {
+                node: e,
+                skip_chars: 0,
+                #[cfg(feature = "wchar_conversion")]
+                skip_pairs: 0
+            }; MAX_HEIGHT+1],
+            rng: &mut self.rng,
+            num_bytes: &mut self.num_bytes,
+            phantom: PhantomData,
+        };
 
         loop {
             let en = unsafe { &*e };
@@ -1038,15 +1060,9 @@ impl Drop for JumpRope {
     }
 }
 
-impl From<&str> for JumpRope {
-    fn from(str: &str) -> Self {
-        JumpRope::new_from_str(str)
-    }
-}
-
-impl From<String> for JumpRope {
-    fn from(str: String) -> Self {
-        JumpRope::new_from_str(&str)
+impl<S: AsRef<str>> From<S> for JumpRope {
+    fn from(str: S) -> Self {
+        JumpRope::new_from_str(str.as_ref())
     }
 }
 
