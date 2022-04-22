@@ -295,7 +295,7 @@ impl<'a> MutCursor<'a> {
                 // actual pointers.
 
                 // Also adding a usize + isize is awful in rust :/
-                let entry = &mut (*self.inner[i].node).nexts_mut()[i];
+                let entry = &mut (*self.inner[i].node).nexts[i];
                 entry.skip_chars = entry.skip_chars.wrapping_add(by_chars as usize);
                 #[cfg(feature = "wchar_conversion")] {
                     entry.skip_pairs = entry.skip_pairs.wrapping_add(by_pairs as usize);
@@ -436,7 +436,7 @@ impl JumpRope {
     /// assert_eq!(snowman.len_chars(), 2);
     /// ```
     pub fn len_chars(&self) -> usize {
-        self.head.nexts()[self.head.height as usize - 1].skip_chars
+        self.head.nexts[self.head.height as usize - 1].skip_chars
     }
 
     /// String length in wide characters (as would be reported by javascript / C# / etc).
@@ -449,7 +449,7 @@ impl JumpRope {
             skip_chars,
             skip_pairs,
             ..
-        } = self.head.nexts()[self.head.height as usize - 1];
+        } = self.head.nexts[self.head.height as usize - 1];
 
         skip_pairs + skip_chars
     }
@@ -470,7 +470,7 @@ impl JumpRope {
 
         loop { // while height >= 0
             let en = unsafe { &*e };
-            let next = en.nexts()[height];
+            let next = en.nexts[height];
             let skip = next.skip_chars;
             if offset_chars > skip || (!stick_end && offset_chars == skip && !next.node.is_null()) {
                 // Go right.
@@ -526,7 +526,7 @@ impl JumpRope {
 
         loop { // while height >= 0
             let en = unsafe { &*e };
-            let next = en.nexts()[height];
+            let next = en.nexts[height];
             let skip = next.skip_chars;
             if offset > skip || (!stick_end && offset == skip && !next.node.is_null()) {
                 // Go right.
@@ -593,7 +593,7 @@ impl JumpRope {
 
         loop {
             let en = unsafe { &*e };
-            let next = en.nexts()[height];
+            let next = en.nexts[height];
             let skip = next.skip_chars + next.skip_pairs;
             if offset > skip {
                 // Go right.
@@ -635,7 +635,7 @@ impl JumpRope {
 
         loop {
             let en = unsafe { &*e };
-            let next = en.nexts()[height];
+            let next = en.nexts[height];
             let skip = next.skip_chars + next.skip_pairs;
             if offset > skip || (!stick_end && offset == skip && !next.node.is_null()) {
                 // Go right.
@@ -735,7 +735,7 @@ impl JumpRope {
 
         for i in 0..new_height {
             let prev_skip = unsafe { &mut (*cursor.inner[i].node).nexts[i] };
-            let nexts = unsafe { (*new_node).nexts_mut() };
+            let nexts = unsafe { &mut (*new_node).nexts };
             nexts[i].node = prev_skip.node;
             nexts[i].skip_chars = num_chars + prev_skip.skip_chars - cursor.inner[i].skip_chars;
 
@@ -818,7 +818,7 @@ impl JumpRope {
 
             if offset_chars > 0 {
                 // Changing this to debug_assert reduces performance by a few % for some reason.
-                assert!(offset_chars <= (*e).nexts()[0].skip_chars);
+                assert!(offset_chars <= (*e).nexts[0].skip_chars);
                 // This could be faster, but its not a big deal.
                 offset_bytes = (*e).str.count_bytes(offset_chars);
             }
@@ -1002,10 +1002,10 @@ impl JumpRope {
 
                     for i in 0..(*node).height as usize {
                         let s = &mut (*cursor.inner[i].node).nexts_mut()[i];
-                        s.node = (*node).nexts_mut()[i].node;
-                        s.skip_chars += (*node).nexts()[i].skip_chars - removed;
+                        s.node = (*node).nexts[i].node;
+                        s.skip_chars += (*node).nexts[i].skip_chars - removed;
                         #[cfg(feature = "wchar_conversion")] {
-                            s.skip_pairs += (*node).nexts()[i].skip_pairs - removed_pairs;
+                            s.skip_pairs += (*node).nexts[i].skip_pairs - removed_pairs;
                         }
                     }
 
@@ -1017,7 +1017,7 @@ impl JumpRope {
                 }
 
                 for i in height..cursor.head_height() {
-                    let s = &mut (*cursor.inner[i].node).nexts_mut()[i];
+                    let s = &mut (*cursor.inner[i].node).nexts[i];
                     s.skip_chars -= removed;
                     #[cfg(feature = "wchar_conversion")] {
                         s.skip_pairs -= removed_pairs;
@@ -1326,10 +1326,10 @@ impl JumpRope {
                 }
 
                 // println!("replacing entry {:?} with {:?}", entry, n.nexts()[i].node);
-                entry.node = n.nexts()[i].node;
-                entry.skip_chars += n.nexts()[i].skip_chars;
+                entry.node = n.nexts[i].node;
+                entry.skip_chars += n.nexts[i].skip_chars;
                 #[cfg(feature = "wchar_conversion")] {
-                    entry.skip_pairs += n.nexts()[i].skip_pairs;
+                    entry.skip_pairs += n.nexts[i].skip_pairs;
                 }
             }
 
