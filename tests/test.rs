@@ -5,6 +5,10 @@ use rand::prelude::*;
 
 use std::cmp::min;
 use std::ops::Range;
+use std::ptr;
+use jumprope::JumpRope;
+#[cfg(feature = "buffered")]
+use jumprope::JumpRopeBuf;
 
 const UNI_CHARS: [char; 23] = [
   'a', 'b', 'c', '1', '2', '3', ' ', '_', // ASCII
@@ -61,6 +65,15 @@ fn empty_rope_has_no_contents() {
 
     r.insert(0, "");
     check(&r, "");
+}
+
+#[test]
+fn from_str_and_string() {
+    let r1 = JumpRope::from("hi");
+    check(&r1, "hi");
+
+    let r2 = JumpRope::from(String::from("hi"));
+    check(&r2, "hi");
 }
 
 #[test]
@@ -139,10 +152,6 @@ fn really_long_ascii_string() {
     let expect = format!("{}{}", s.chars().next().unwrap(), s.chars().rev().next().unwrap());
     check(&r, expect.as_str());
 }
-
-
-use std::ptr;
-use jumprope::{JumpRope, JumpRopeBuf};
 
 fn string_insert_at(s: &mut String, char_pos: usize, contents: &str) {
     // If you try to write past the end of the string for now I'll just write at the end.
@@ -346,7 +355,7 @@ fn fuzz_wchar_forever() {
     }
 }
 
-
+#[cfg(feature = "buffered")]
 fn random_edits_buffered(seed: u64, verbose: bool) {
     let mut r = JumpRopeBuf::new();
     let mut s = String::new();
@@ -398,11 +407,13 @@ fn random_edits_buffered(seed: u64, verbose: bool) {
     check(&rope, s.as_str());
 }
 
+#[cfg(feature = "buffered")]
 #[test]
 fn fuzz_buffered_once() {
     random_edits_buffered(0, false);
 }
 
+#[cfg(feature = "buffered")]
 #[test]
 #[ignore]
 fn fuzz_buffered_forever() {
@@ -415,6 +426,20 @@ fn fuzz_buffered_forever() {
 #[test]
 fn eq_variants() {
     let rope = JumpRope::from("Hi there");
+
+    assert_eq!(rope.clone(), "Hi there");
+    assert_eq!(rope.clone(), String::from("Hi there"));
+    assert_eq!(rope.clone(), &String::from("Hi there"));
+
+    assert_eq!(&rope, "Hi there");
+    assert_eq!(&rope, String::from("Hi there"));
+    assert_eq!(&rope, &String::from("Hi there"));
+}
+
+#[cfg(feature = "buffered")]
+#[test]
+fn buffered_eq_variants() {
+    let rope = JumpRopeBuf::from("Hi there");
 
     assert_eq!(rope.clone(), "Hi there");
     assert_eq!(rope.clone(), String::from("Hi there"));

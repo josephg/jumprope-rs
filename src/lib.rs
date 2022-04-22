@@ -126,8 +126,10 @@ mod gapbuffer;
 mod utils;
 mod iter;
 mod fast_str_tools;
-mod buffered;
-// mod params;
 
 pub use crate::jumprope::JumpRope;
+
+#[cfg(feature = "buffered")]
+mod buffered;
+#[cfg(feature = "buffered")]
 pub use crate::buffered::JumpRopeBuf;

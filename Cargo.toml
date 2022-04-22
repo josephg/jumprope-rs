@@ -19,6 +19,7 @@ members = ["jumprope-wasm", "rope_benches", "crdt-testdata"]
 default = ["ddos_protection"]
 ddos_protection = []
 wchar_conversion = []
+buffered = []
 
 [dependencies]
 rand = { version = "0.8", features = ["small_rng"] }
