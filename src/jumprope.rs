@@ -510,19 +510,15 @@ impl JumpRope {
         assert!(char_pos <= self.len_chars());
 
         let mut e: *mut Node = &mut self.head;
-        let mut height = self.head.height as usize - 1;
+        let head_height = self.head.height as usize;
+        let mut height = head_height - 1;
 
         let mut offset = char_pos; // How many more chars to skip
 
         #[cfg(feature = "wchar_conversion")]
         let mut surrogate_pairs = 0; // Current wchar pos from the start of the rope
 
-        let mut iter = [SkipEntry {
-            node: e,
-            skip_chars: 0,
-            #[cfg(feature = "wchar_conversion")]
-            skip_pairs: 0,
-        }; MAX_HEIGHT+1];
+        let mut cursor = self.mut_cursor_at_start();
 
         loop { // while height >= 0
             let en = unsafe { &*e };
@@ -541,7 +537,7 @@ impl JumpRope {
                 assert!(!e.is_null(), "Internal constraint violation: Reached rope end prematurely");
             } else {
                 // Record this and go down.
-                iter[height] = SkipEntry {
+                cursor.inner[height] = SkipEntry {
                     // node: e as *mut Node, // This is pretty gross
                     node: e,
                     skip_chars: offset,
@@ -556,7 +552,7 @@ impl JumpRope {
                         // Add on the wchar length at the current node.
                         surrogate_pairs += en.str.count_surrogate_pairs(offset);
                         if surrogate_pairs > 0 {
-                            for entry in &mut iter[0..self.head.height as usize] {
+                            for entry in &mut cursor.inner[0..head_height] {
                                 entry.skip_pairs = surrogate_pairs - entry.skip_pairs;
                             }
                         }
@@ -567,15 +563,6 @@ impl JumpRope {
         };
 
         assert!(offset <= NODE_STR_SIZE);
-
-        let cursor = MutCursor {
-            inner: iter,
-            // head_nexts: &mut self.head.nexts,
-            // head_height: h,
-            rng: &mut self.rng,
-            num_bytes: &mut self.num_bytes,
-            phantom: PhantomData,
-        };
 
         cursor
     }
@@ -627,11 +614,7 @@ impl JumpRope {
 
         let mut char_pos = 0; // Char pos from the start of the rope
 
-        let mut iter = [SkipEntry {
-            node: e,
-            skip_chars: 0,
-            skip_pairs: 0,
-        }; MAX_HEIGHT+1];
+        let mut cursor = self.mut_cursor_at_start();
 
         loop {
             let en = unsafe { &*e };
@@ -646,7 +629,7 @@ impl JumpRope {
                 assert!(!e.is_null(), "Internal constraint violation: Reached rope end prematurely");
             } else {
                 // Record this and go down.
-                iter[height] = SkipEntry {
+                cursor.inner[height] = SkipEntry {
                     node: e,
                     skip_chars: char_pos,
                     skip_pairs: offset
@@ -656,7 +639,7 @@ impl JumpRope {
                     height -= 1;
                 } else {
                     char_pos += en.str.count_chars_in_wchars(offset);
-                    for entry in &mut iter[0..head_height] {
+                    for entry in &mut cursor.inner[0..head_height] {
                         let skip_chars = char_pos - entry.skip_chars;
                         entry.skip_chars = skip_chars;
                         entry.skip_pairs -= skip_chars;
@@ -668,14 +651,7 @@ impl JumpRope {
 
         assert!(offset <= NODE_STR_SIZE);
 
-        MutCursor {
-            inner: iter,
-            // head_nexts: &mut self.head.nexts,
-            // head_height: h,
-            rng: &mut self.rng,
-            num_bytes: &mut self.num_bytes,
-            phantom: PhantomData,
-        }
+        cursor
     }
 
     fn mut_cursor_at_start(&mut self) -> MutCursor<'_> {
