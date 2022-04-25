@@ -150,6 +150,31 @@ impl<'a> Iterator for ContentRangeIter<'a> {
 impl JumpRope {
     pub(crate) fn node_iter(&self) -> NodeIter { NodeIter(Some(&self.head)) }
 
+    /// Iterate over the rope, visiting characters in [`str`] chunks. Whenever possible, this is the
+    /// best way for a program to read back the contents of a rope, because it avoids allocating
+    /// memory or copying the characters themselves (as you get with .to_string() or .chars()).
+    ///
+    /// ## Stability Warning
+    ///
+    /// The characters returned by this iterator will be chunked based on implementation defined
+    /// factors. The specific chunking may change in arbitrary ways between minor versions. Do not
+    /// depend on this.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use jumprope::*;
+    /// let rope = JumpRope::from("oh hai");
+    /// let mut string = String::new();
+    /// for str in rope.iter_str() {
+    ///     string.push_str(str);
+    /// }
+    /// assert_eq!(string, "oh hai");
+    /// ```
+    pub fn iter_str(&self) -> StrContentIter<'_> {
+        self.chunks().strings()
+    }
+
     /// Iterate over all "string chunks" in the rope. Iterated chunks are pairs of (str, char_len)
     /// items. The way items are split by the library is undefined, and should not be relied upon.
     /// (It may change in minor point releases).

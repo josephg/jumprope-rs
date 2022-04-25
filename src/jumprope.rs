@@ -1030,7 +1030,7 @@ impl JumpRope {
     fn eq_str(&self, mut other: &str) -> bool {
         if self.len_bytes() != other.len() { return false; }
 
-        for s in self.chunks().strings() {
+        for s in self.iter_str() {
             let (start, rem) = other.split_at(s.len());
             if start != s { return false; }
             other = rem;
@@ -1082,12 +1082,12 @@ impl PartialEq for JumpRope {
             return false
         }
 
-        let mut other_iter = other.chunks().strings();
+        let mut other_iter = other.iter_str();
 
         // let mut os = other_iter.next();
         let mut os = "";
 
-        for mut s in self.chunks().strings() {
+        for mut s in self.iter_str() {
             // Walk s.len() bytes through the other rope
             while !s.is_empty() {
                 if os.is_empty() {
@@ -1116,14 +1116,14 @@ impl Eq for JumpRope {}
 impl Debug for JumpRope {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_list()
-            .entries(self.chunks().strings())
+            .entries(self.iter_str())
             .finish()
     }
 }
 
 impl Display for JumpRope {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for (s, _) in self.chunks() {
+        for s in self.iter_str() {
             f.write_str(s)?;
         }
         Ok(())
