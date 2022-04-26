@@ -156,16 +156,14 @@ pub(crate) fn count_chars(text: &str) -> usize {
 #[inline]
 pub(crate) fn count_chars_in_bytes(text: &[u8]) -> usize {
     if text.len() <= 1 { text.len() }
-    else {
-        if cfg!(not(miri)) {
-            unsafe { str_indices::chars::count(std::str::from_utf8_unchecked(text)) }
-        } else {
-            let mut inv_count = 0;
-            for byte in text.iter() {
-                inv_count += ((byte & 0xC0) != 0x80) as usize;
-            }
-            inv_count
+    else if !cfg!(miri) {
+        unsafe { str_indices::chars::count(std::str::from_utf8_unchecked(text)) }
+    } else {
+        let mut inv_count = 0;
+        for byte in text.iter() {
+            inv_count += ((byte & 0xC0) != 0x80) as usize;
         }
+        inv_count
     }
 }
 

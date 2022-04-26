@@ -84,6 +84,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
             let len = self.gap_len as usize;
             debug_assert!(new_start_bytes <= LEN-len);
 
+            #[allow(clippy::comparison_chain)]
             if new_start_bytes < current_start {
                 // move characters to the right (gap to the left)
                 let moved_chars = new_start_bytes..current_start;
@@ -257,6 +258,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
         let gap_chars = self.gap_start_chars as usize;
         let gap_bytes = self.gap_start_bytes as usize;
         // Clippy complains about this but if I swap to a match expression, performance drops by 1%.
+        #[allow(clippy::comparison_chain)]
         if char_pos == gap_chars {
             gap_bytes
         } else if char_pos < gap_chars {

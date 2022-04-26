@@ -64,7 +64,7 @@ pub struct Substrings<'a, I: Iterator<Item=(&'a str, usize)> = ContentIter<'a>>(
 
 impl<'a, I: Iterator<Item=(&'a str, usize)>> Substrings<'a, I> {
     /// Convert this content into a string
-    pub fn to_string(self) -> String {
+    pub fn into_string(self) -> String {
         self.collect::<String>()
     }
 }
