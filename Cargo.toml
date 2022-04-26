@@ -43,4 +43,4 @@ opt-level = 2
 
 
 [package.metadata.docs.rs]
-features = ["wchar_conversion"]
+features = ["wchar_conversion", "buffered"]

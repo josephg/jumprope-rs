@@ -129,7 +129,9 @@ mod fast_str_tools;
 
 pub use crate::jumprope::JumpRope;
 
+#[cfg_attr(doc_cfg, doc(cfg(feature = "buffered")))]
 #[cfg(feature = "buffered")]
 mod buffered;
+
 #[cfg(feature = "buffered")]
 pub use crate::buffered::JumpRopeBuf;

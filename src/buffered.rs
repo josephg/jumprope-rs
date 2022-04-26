@@ -1,10 +1,13 @@
-// This is an experimental approach to jumprope where we buffer all changes
+//! This module provides the experimental [`JumpRopeBuf`] struct for buffering incoming writes to
+//! a jumprope object.
+//!
+//! See struct level documentation for details.
 
 
 #[derive(Debug, Clone, Copy)]
 enum Kind { Ins, Del }
 
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::fmt::{Debug, Formatter};
 use std::ops::{Deref, DerefMut, Range};
 use Op::*;
@@ -176,17 +179,28 @@ impl JumpRopeBuf {
                 inner.1.try_append(op).unwrap();
             }
         }
-
     }
 
+    /// Insert new content into the rope at the specified position. This method is semantically
+    /// equivalent to [`JumpRope::insert`](JumpRope::insert). The only difference is that here we
+    /// buffer the incoming edit.
     pub fn insert(&mut self, pos: usize, content: &str) {
         self.internal_push_op(Op::Ins(pos, content))
     }
 
+    /// Remove content from the rope at the specified position. This method is semantically
+    /// equivalent to [`JumpRope::remove`](JumpRope::insert). The only difference is that here we
+    /// buffer the incoming remove operation.
     pub fn remove(&mut self, range: Range<usize>) {
         self.internal_push_op(Op::Del(range.start, range.end))
     }
 
+    // TODO: Replace!
+
+    /// Return the length of the rope in unicode characters. Note this is not the same as either
+    /// the number of bytes the characters take, or the number of grapheme clusters in the string.
+    ///
+    /// This method returns the length in constant-time (*O(1)*).
     pub fn len_chars(&self) -> usize {
         let borrow = self.0.borrow();
         match borrow.1.kind {
@@ -195,6 +209,8 @@ impl JumpRopeBuf {
         }
     }
 
+    /// Get the number of bytes used for the UTF8 representation of the rope. This will always match
+    /// the .len() property of the equivalent String.
     pub fn len_bytes(&self) -> usize {
         let mut borrow = self.0.borrow_mut();
         match borrow.1.kind {
@@ -207,24 +223,30 @@ impl JumpRopeBuf {
         }
     }
 
-    /// Consume the JumpRopeBuf, flushing the contents and returning the contained JumpRope.
+    /// Consume the JumpRopeBuf, flush any buffered operations and return the contained JumpRope.
     pub fn into_inner(self) -> JumpRope {
         let mut contents = self.0.into_inner();
         Self::flush_mut(&mut contents);
         contents.0
     }
 
-    /// Flush changes into the rope and return a borrowed reference to the Rope itself. This makes
+    /// Flush changes into the rope and return a borrowed reference to the rope itself. This makes
     /// it easy to call any methods on the underlying rope which aren't already exposed through the
     /// buffered API.
-    pub fn borrow(&self) -> std::cell::Ref<'_, JumpRope> {
+    ///
+    /// # Panics
+    ///
+    /// borrow panics if the value is currently borrowed already.
+    pub fn borrow(&self) -> Ref<'_, JumpRope> {
         let mut borrow = self.0.borrow_mut();
         Self::flush_mut(borrow.deref_mut());
         drop(borrow);
-        std::cell::Ref::map(self.0.borrow(), |(rope, _)| rope)
+        // This method could provide &mut access to the rope via the cell, but I think thats a bad
+        // idea.
+        Ref::map(self.0.borrow(), |(rope, _)| rope)
     }
 
-    /// Flush changes into the rope and borrow the rope as a &mut JumpRope
+    /// Flush changes into the rope and mutably borrow the rope.
     pub fn as_mut(&mut self) -> &'_ mut JumpRope {
         let inner = self.0.get_mut();
         Self::flush_mut(inner);
@@ -240,8 +262,8 @@ impl Debug for JumpRopeBuf {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let inner = self.0.borrow();
         f.debug_struct("BufferedRope")
-            // .field("rope", &inner.0)
             .field("op", &inner.1)
+            .field("rope", &inner.0)
             .finish()
     }
 }

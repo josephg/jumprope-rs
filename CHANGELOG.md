@@ -1,3 +1,16 @@
+# 1.0.0
+
+- Woohoo!
+- **Breaking API change**: Renamed the iterator methods. `rope.chunks()` -> `rope.substrings_with_len()`. Added `rope.substrings()` and `rope.slice_substrings()`.
+- Added buffered API, though for now its experimental and behind a feature flag.
+- Made miri pass against jumprope. This involved some changes:
+  - The dynamically allocated heights in node.nexts lists have been removed. This results in less unsafe code, but increases the memory overhead of the library.
+  - Wasm bundle size has grown
+  - Performance is mostly unaffected.
+- Bumped to str_indices 0.3.2
+- Added Eq trait support to all the combinations of `rope` / `&rope` vs `&str` / `String` / `&String`.
+
+
 # 0.5.3
 
 - Made Jumprope::new() use a hardcoded seed when ddos_protection is disabled. This makes the module 5kb smaller in wasm and avoids getrandom.
