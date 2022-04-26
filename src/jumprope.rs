@@ -1030,7 +1030,7 @@ impl JumpRope {
     fn eq_str(&self, mut other: &str) -> bool {
         if self.len_bytes() != other.len() { return false; }
 
-        for s in self.iter_str() {
+        for s in self.substrings() {
             let (start, rem) = other.split_at(s.len());
             if start != s { return false; }
             other = rem;
@@ -1082,12 +1082,12 @@ impl PartialEq for JumpRope {
             return false
         }
 
-        let mut other_iter = other.iter_str();
+        let mut other_iter = other.substrings();
 
         // let mut os = other_iter.next();
         let mut os = "";
 
-        for mut s in self.iter_str() {
+        for mut s in self.substrings() {
             // Walk s.len() bytes through the other rope
             while !s.is_empty() {
                 if os.is_empty() {
@@ -1116,14 +1116,14 @@ impl Eq for JumpRope {}
 impl Debug for JumpRope {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_list()
-            .entries(self.iter_str())
+            .entries(self.substrings())
             .finish()
     }
 }
 
 impl Display for JumpRope {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for s in self.iter_str() {
+        for s in self.substrings() {
             f.write_str(s)?;
         }
         Ok(())
@@ -1167,7 +1167,7 @@ impl Clone for JumpRope {
         // performance isn't worth the extra effort.
         let mut r = JumpRope::new();
         let mut cursor = r.mut_cursor_at_start();
-        for node in self.node_iter() {
+        for node in self.node_iter_at_start() {
             JumpRope::insert_at_cursor(&mut cursor, node.as_str_1());
             JumpRope::insert_at_cursor(&mut cursor, node.as_str_2());
         }
@@ -1302,7 +1302,7 @@ impl JumpRope {
         #[cfg(feature = "wchar_conversion")]
         let mut num_pairs = 0;
 
-        for n in self.node_iter() {
+        for n in self.node_iter_at_start() {
             // println!("visiting {:?}", n.as_str());
             assert!(!n.str.is_empty() || std::ptr::eq(n, &self.head));
             assert!(n.height <= MAX_HEIGHT_U8);
@@ -1362,7 +1362,7 @@ impl JumpRope {
     /// - If a rope is owned inside another structure, this method will double-count the bytes
     ///   stored in the rope's head.
     pub fn mem_size(&self) -> usize {
-        let mut nodes = self.node_iter();
+        let mut nodes = self.node_iter_at_start();
         let mut size = 0;
         // The first node is the head. Count the actual head size.
         size += std::mem::size_of::<Self>();
@@ -1391,7 +1391,7 @@ impl JumpRope {
         }
         println!();
 
-        for (i, node) in self.node_iter().enumerate() {
+        for (i, node) in self.node_iter_at_start().enumerate() {
             print!("{}:", i);
             for s in node.nexts() {
                 print!(" |{} ", s.skip_chars);

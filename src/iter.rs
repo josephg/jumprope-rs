@@ -19,13 +19,23 @@ impl<'a> Iterator for NodeIter<'a> {
 }
 
 /// A content iterator iterates over the strings in the rope
-pub struct RawContentIter<'a> {
+pub struct ContentIter<'a> {
     next: Option<&'a Node>,
     /// Are we at the start or the end of the gap buffer?
     at_start: bool,
 }
 
-impl<'a> Iterator for RawContentIter<'a> {
+impl<'a> ContentIter<'a> {
+    pub fn substrings(self) -> Substrings<'a> {
+        Substrings(self)
+    }
+
+    pub fn chars(self) -> Chars<'a> {
+        self.into()
+    }
+}
+
+impl<'a> Iterator for ContentIter<'a> {
     type Item = (&'a str, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -48,9 +58,18 @@ impl<'a> Iterator for RawContentIter<'a> {
     }
 }
 
-pub struct StrSlices<'a, I: Iterator<Item=(&'a str, usize)>>(I);
+/// Iterator over the substrings in some content. This is just a hand-written .map(|s, len| s)
+/// iterator to make it possible to embed a jumprope iterator inside another iterator.
+pub struct Substrings<'a, I: Iterator<Item=(&'a str, usize)> = ContentIter<'a>>(I);
 
-impl<'a, I: Iterator<Item=(&'a str, usize)>> Iterator for StrSlices<'a, I> {
+impl<'a, I: Iterator<Item=(&'a str, usize)>> Substrings<'a, I> {
+    /// Convert this content into a string
+    pub fn to_string(self) -> String {
+        self.collect::<String>()
+    }
+}
+
+impl<'a, I: Iterator<Item=(&'a str, usize)>> Iterator for Substrings<'a, I> {
     type Item = &'a str;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -58,12 +77,13 @@ impl<'a, I: Iterator<Item=(&'a str, usize)>> Iterator for StrSlices<'a, I> {
     }
 }
 
-pub struct CharsRaw<'a, I: Iterator<Item=(&'a str, usize)>> {
+/// Iterator over the individual characters in a rope (or rope slice).
+pub struct Chars<'a, I: Iterator<Item=(&'a str, usize)> = ContentIter<'a>> {
     inner: I,
     current: std::str::Chars<'a>,
 }
 
-impl<'a, I: Iterator<Item=(&'a str, usize)>> From<I> for CharsRaw<'a, I> {
+impl<'a, I: Iterator<Item=(&'a str, usize)>> From<I> for Chars<'a, I> {
     fn from(inner: I) -> Self {
         Self {
             inner,
@@ -72,7 +92,7 @@ impl<'a, I: Iterator<Item=(&'a str, usize)>> From<I> for CharsRaw<'a, I> {
     }
 }
 
-impl<'a, I: Iterator<Item=(&'a str, usize)>> Iterator for CharsRaw<'a, I> {
+impl<'a, I: Iterator<Item=(&'a str, usize)>> Iterator for Chars<'a, I> {
     type Item = char;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -86,39 +106,27 @@ impl<'a, I: Iterator<Item=(&'a str, usize)>> Iterator for CharsRaw<'a, I> {
     }
 }
 
-pub type StrContentIter<'a> = StrSlices<'a, RawContentIter<'a>>;
-pub type Chars<'a> = CharsRaw<'a, RawContentIter<'a>>;
-
-impl<'a> RawContentIter<'a> {
-    pub fn strings(self) -> StrContentIter<'a> {
-        StrSlices(self)
-    }
-
-    pub fn chars(self) -> Chars<'a> {
-        self.into()
-    }
-}
-
-pub struct ContentRangeIter<'a> {
-    inner: RawContentIter<'a>,
+/// Iterate over a sub-range of the rope.
+pub struct SliceIter<'a> {
+    inner: ContentIter<'a>,
     skip: usize,
     take_len: usize,
 }
 
-pub type StrRangeIter<'a> = StrSlices<'a, ContentRangeIter<'a>>;
-pub type CharsSlice<'a> = CharsRaw<'a, ContentRangeIter<'a>>;
+pub type SubstringsInRange<'a> = Substrings<'a, SliceIter<'a>>;
+pub type CharsInRange<'a> = Chars<'a, SliceIter<'a>>;
 
-impl<'a> ContentRangeIter<'a> {
-    pub fn strings(self) -> StrRangeIter<'a> {
-        StrSlices(self)
+impl<'a> SliceIter<'a> {
+    pub fn substrings(self) -> SubstringsInRange<'a> {
+        Substrings(self)
     }
 
-    pub fn chars(self) -> CharsSlice<'a> {
+    pub fn chars(self) -> CharsInRange<'a> {
         self.into()
     }
 }
 
-impl<'a> Iterator for ContentRangeIter<'a> {
+impl<'a> Iterator for SliceIter<'a> {
     type Item = (&'a str, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -148,17 +156,18 @@ impl<'a> Iterator for ContentRangeIter<'a> {
 }
 
 impl JumpRope {
-    pub(crate) fn node_iter(&self) -> NodeIter { NodeIter(Some(&self.head)) }
+    pub(crate) fn node_iter_at_start(&self) -> NodeIter { NodeIter(Some(&self.head)) }
 
-    /// Iterate over the rope, visiting characters in [`str`] chunks. Whenever possible, this is the
-    /// best way for a program to read back the contents of a rope, because it avoids allocating
+    /// Iterate over the rope, visiting each substring in [`str`] chunks. Whenever possible, this is
+    /// the best way for a program to read back the contents of a rope, because it avoids allocating
     /// memory or copying the characters themselves (as you get with .to_string() or .chars()).
     ///
     /// ## Stability Warning
     ///
-    /// The characters returned by this iterator will be chunked based on implementation defined
-    /// factors. The specific chunking may change in arbitrary ways between minor versions. Do not
-    /// depend on this.
+    /// This iterator will always return all the characters in document order, but the particular
+    /// way characters are grouped together is based on internal implementation details. Thus it
+    /// might change in arbitrary ways at any time. Your application should not depend on the
+    /// specifics of this chunking.
     ///
     /// # Example
     ///
@@ -166,18 +175,27 @@ impl JumpRope {
     /// # use jumprope::*;
     /// let rope = JumpRope::from("oh hai");
     /// let mut string = String::new();
-    /// for str in rope.iter_str() {
+    /// for str in rope.substrings() {
     ///     string.push_str(str);
     /// }
     /// assert_eq!(string, "oh hai");
     /// ```
-    pub fn iter_str(&self) -> StrContentIter<'_> {
-        self.chunks().strings()
+    pub fn substrings(&self) -> Substrings<'_> {
+        self.substrings_with_len().substrings()
     }
 
-    /// Iterate over all "string chunks" in the rope. Iterated chunks are pairs of (str, char_len)
-    /// items. The way items are split by the library is undefined, and should not be relied upon.
-    /// (It may change in minor point releases).
+    /// Iterate over all substrings in the rope, but also yield the unicode character length for
+    /// each item. A caller could obviously recalculate these lengths from the provided &str
+    /// objects, but since the unicode lengths are known this allows small optimizations.
+    ///
+    /// The iterator yields pairs of (str, char_len).
+    ///
+    /// ## Stability Warning
+    ///
+    /// This iterator will always return all the characters in document order, but the particular
+    /// way characters are grouped together is based on internal implementation details. Thus it
+    /// might change in arbitrary ways at any time. Your application should not depend on the
+    /// specifics of this chunking.
     ///
     /// # Example
     ///
@@ -185,14 +203,14 @@ impl JumpRope {
     /// # use jumprope::*;
     /// let rope = JumpRope::from("oh hai");
     /// let mut string = String::new();
-    /// for (str, char_len) in rope.chunks() {
+    /// for (str, char_len) in rope.substrings_with_len() {
     ///     assert_eq!(str.chars().count(), char_len);
     ///     string.push_str(str);
     /// }
     /// assert_eq!(string, "oh hai");
     /// ```
-    pub fn chunks(&self) -> RawContentIter {
-        RawContentIter {
+    pub fn substrings_with_len(&self) -> ContentIter {
+        ContentIter {
             next: Some(&self.head),
             at_start: true
         }
@@ -200,7 +218,7 @@ impl JumpRope {
 
     /// Get an iterator over all characters in the rope.
     ///
-    /// In most cases this will be less efficient than using [`chunks`](Self::chunks) to
+    /// In most cases this will be less efficient than using [`substrings`](Self::substrings) to
     /// iterate over all &str items contained in the rope.
     ///
     /// # Example
@@ -211,7 +229,27 @@ impl JumpRope {
     /// assert_eq!("oh hai", rope.chars().collect::<String>());
     /// ```
     pub fn chars(&self) -> Chars {
-        self.chunks().chars()
+        self.substrings_with_len().chars()
+    }
+
+
+
+    /// Iterate through all the substrings within the specified unicode character range in the
+    /// document.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use jumprope::*;
+    /// let rope = JumpRope::from("xxxGreetings!xxx");
+    /// let mut string = String::new();
+    /// for s in rope.slice_substrings(3..rope.len_chars() - 3) {
+    ///     string.push_str(s);
+    /// }
+    /// assert_eq!(string, "Greetings!");
+    /// ```
+    pub fn slice_substrings(&self, range: Range<usize>) -> SubstringsInRange {
+        self.slice_substrings_with_len(range).substrings()
     }
 
     /// Iterate through chunks across a character range in the document.
@@ -222,7 +260,7 @@ impl JumpRope {
     /// # use jumprope::*;
     /// let rope = JumpRope::from("xxxGreetings!xxx");
     /// let mut string = String::new();
-    /// for (str, char_len) in rope.slice_chunks(3..rope.len_chars() - 3) {
+    /// for (str, char_len) in rope.slice_substrings_with_len(3..rope.len_chars() - 3) {
     ///     assert_eq!(str.chars().count(), char_len);
     ///     string.push_str(str);
     /// }
@@ -234,10 +272,10 @@ impl JumpRope {
     /// ```
     /// # use jumprope::*;
     /// let rope = JumpRope::from("xxxGreetings!xxx");
-    /// let string = rope.slice_chunks(3..13).map(|(str, _len)| str).collect::<String>();
+    /// let string = rope.slice_substrings_with_len(3..13).map(|(str, _len)| str).collect::<String>();
     /// assert_eq!(string, "Greetings!");
     /// ```
-    pub fn slice_chunks(&self, range: Range<usize>) -> ContentRangeIter {
+    pub fn slice_substrings_with_len(&self, range: Range<usize>) -> SliceIter {
         let cursor = self.read_cursor_at_char(range.start, false);
         let node_gap_start = cursor.node.str.gap_start_chars as usize;
         let local_pos = cursor.offset_chars;
@@ -248,8 +286,8 @@ impl JumpRope {
             (true, local_pos)
         };
 
-        ContentRangeIter {
-            inner: RawContentIter {
+        SliceIter {
+            inner: ContentIter {
                 next: Some(cursor.node), at_start
             },
             skip,
@@ -270,8 +308,8 @@ impl JumpRope {
     ///     rope.slice_chars(3..rope.len_chars() - 3).collect::<String>()
     /// );
     /// ```
-    pub fn slice_chars(&self, range: Range<usize>) -> CharsSlice {
-        self.slice_chunks(range).chars()
+    pub fn slice_chars(&self, range: Range<usize>) -> CharsInRange {
+        self.slice_substrings_with_len(range).chars()
     }
 }
 
@@ -282,17 +320,17 @@ mod tests {
     use crate::jumprope::NODE_STR_SIZE;
 
     fn check(rope: &JumpRope) {
-        for (s, len) in rope.chunks() {
+        for (s, len) in rope.substrings_with_len() {
             assert_eq!(count_chars(s), len);
             assert_ne!(len, 0); // Returned items may not be empty.
         }
 
-        for (s, len) in rope.slice_chunks(0..rope.len_chars()) {
+        for (s, len) in rope.slice_substrings_with_len(0..rope.len_chars()) {
             assert_eq!(count_chars(s), len);
             assert_ne!(len, 0); // Returned items may not be empty.
         }
 
-        assert_eq!(rope.chunks().chars().collect::<String>(), rope.to_string());
+        assert_eq!(rope.substrings_with_len().chars().collect::<String>(), rope.to_string());
         assert_eq!(rope.chars().collect::<String>(), rope.to_string());
         assert_eq!(rope.slice_chars(0..rope.len_chars()).collect::<String>(), rope.to_string());
 
@@ -313,17 +351,17 @@ mod tests {
 
         let mut rope = JumpRope::from("aaaa");
         rope.insert(2, "b"); // This will force a gap.
-        assert_eq!(rope.chunks().count(), 2);
+        assert_eq!(rope.substrings_with_len().count(), 2);
         check(&rope);
 
         // Long enough that in debugging mode we'll spill into multiple items.
         let s = "XXXaaaaaaaaaaaaaaaaaaaaaaaaaaXXX";
         let rope = JumpRope::from(s);
-        assert!(rope.chunks().count() > 1);
+        assert!(rope.substrings_with_len().count() > 1);
         check(&rope);
 
         assert_eq!(
-            rope.slice_chunks(3..s.len() - 3).chars().collect::<String>(),
+            rope.slice_substrings_with_len(3..s.len() - 3).chars().collect::<String>(),
             &s[3..s.len() - 3]
         );
     }
