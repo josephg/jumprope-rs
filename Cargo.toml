@@ -15,9 +15,12 @@ exclude = [
 members = ["jumprope-wasm", "rope_benches", "crdt-testdata"]
 
 [features]
-#default = ["ddos_protection", "wchar_conversion"]
 default = ["ddos_protection"]
+# ddos_protection makes jumprope use a better RNG algorithm to avoid DOS
+# attacks
 ddos_protection = []
+# wchar_conversion adds support for converting wchar positions (eg from JS or
+# ObjC) into local unicode offsets.
 wchar_conversion = []
 
 # TODO: Remove me for 2.0 - the buffered feature is no longer needed.
