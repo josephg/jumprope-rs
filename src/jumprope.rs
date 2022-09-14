@@ -1127,7 +1127,7 @@ impl Debug for JumpRope {
 }
 
 impl Display for JumpRope {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         for s in self.substrings() {
             f.write_str(s)?;
         }

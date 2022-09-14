@@ -401,6 +401,14 @@ fn random_edits_buffered(seed: u64, verbose: bool) {
             string_del_at(&mut s, pos, dlen);
         }
         // dbg!(&r);
+
+        assert_eq!(r.is_empty(), s.is_empty());
+
+        // Checking the length flushes the buffered op - which is a useful test, but if we do it
+        // every time, the buffer won't build up and the test won't have the right coverage.
+        if rng.gen_bool(0.05) {
+            assert_eq!(r.len_chars(), s.chars().count());
+        }
     }
 
     let rope = r.into_inner();

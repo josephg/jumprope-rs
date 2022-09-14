@@ -1,14 +1,31 @@
-//! This module provides the experimental [`JumpRopeBuf`] struct for buffering incoming writes to
-//! a jumprope object.
+//! This module provides an optimized wrapper around a [`JumpRope`] struct which buffers incoming
+//! edits and applies them "all at once" when the rope is read. This makes access patterns involving
+//! replaying many small operations much faster (8x faster on some real world testing data).
 //!
-//! See struct level documentation for details.
+//! Using [`JumpRopeBuf`] instead of [`JumpRope`] directly is equivalent to using a
+//! [`BufWriter`](std::io::BufWriter) to write to a file / stream.
+//!
+//! This API should be almost identical with JumpRope, but I've probably forgotten a few methods.
+//! If you find some useful methods which are missing, please file issues and I can add them
+//! explicitly to the wrapper. You can also use `rope.borrow().read_method()` or
+//! `rope.as_mut().write_method()` as workarounds.
+//!
+//! Internally, JumpRopeBuf stores incoming writes in a write buffer before applying them. Adjacent
+//! edits can be merged before the skip list is edited, which reduces the need for (relatively)
+//! more expensive skip list lookups.
+//!
+//! ## Caveats:
+//!
+//! - [`JumpRopeBuf`] uses a RefCell internally. As a result, it does not expose a &JumpRope
+//!   directly.
+//! - Use of the RefCell means JumpRope is [`Send`](std::marker::Send) but not [`Sync`](std::marker::Sync).
 
 
 #[derive(Debug, Clone, Copy)]
 enum Kind { Ins, Del }
 
 use std::cell::{Ref, RefCell};
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::{Deref, DerefMut, Range};
 use Op::*;
 use crate::fast_str_tools::{char_to_byte_idx, count_chars};
@@ -32,6 +49,7 @@ pub struct JumpRopeBuf(RefCell<(JumpRope, BufferedOp)>);
 #[derive(Debug, Clone)]
 struct BufferedOp {
     kind: Kind,
+    // Always empty for deletes.
     ins_content: String,
     range: Range<usize>,
 }
@@ -54,6 +72,11 @@ impl BufferedOp {
     fn is_empty(&self) -> bool {
         // self.len == 0
         self.range.is_empty()
+    }
+
+    /// Length of the inserted / deleted section
+    fn len(&self) -> usize {
+        self.range.len()
     }
 
     fn clear(&mut self) {
@@ -84,7 +107,7 @@ impl BufferedOp {
         } else {
             match (self.kind, op) {
                 (Kind::Ins, Op::Ins(pos, content)) if pos == self.range.end => {
-                    // We can merge this.
+                    // The new insert is at the end of the buffered op.
                     self.ins_content.push_str(content);
                     self.range.end += count_chars(content);
                     Ok(())
@@ -223,6 +246,15 @@ impl JumpRopeBuf {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        let borrow = self.0.borrow();
+        let len_chars = borrow.0.len_chars();
+        match borrow.1.kind {
+            Kind::Ins => len_chars == 0 && borrow.1.is_empty(),
+            Kind::Del => len_chars - borrow.1.len() == 0,
+        }
+    }
+
     /// Consume the JumpRopeBuf, flush any buffered operations and return the contained JumpRope.
     pub fn into_inner(self) -> JumpRope {
         let mut contents = self.0.into_inner();
@@ -246,15 +278,23 @@ impl JumpRopeBuf {
         Ref::map(self.0.borrow(), |(rope, _)| rope)
     }
 
+    fn eq_str(&self, s: &str) -> bool {
+        self.borrow().deref().eq(s)
+    }
+}
+
+impl AsMut<JumpRope> for JumpRopeBuf {
     /// Flush changes into the rope and mutably borrow the rope.
-    pub fn as_mut(&mut self) -> &'_ mut JumpRope {
+    fn as_mut(&mut self) -> &mut JumpRope {
         let inner = self.0.get_mut();
         Self::flush_mut(inner);
         &mut inner.0
     }
+}
 
-    fn eq_str(&self, s: &str) -> bool {
-        self.borrow().deref().eq(s)
+impl Default for JumpRopeBuf {
+    fn default() -> Self {
+        JumpRopeBuf::new()
     }
 }
 
@@ -265,6 +305,15 @@ impl Debug for JumpRopeBuf {
             .field("op", &inner.1)
             .field("rope", &inner.0)
             .finish()
+    }
+}
+
+impl Display for JumpRopeBuf {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        for s in self.borrow().substrings() {
+            f.write_str(s)?;
+        }
+        Ok(())
     }
 }
 
@@ -298,5 +347,42 @@ impl PartialEq<str> for JumpRopeBuf {
 impl PartialEq<String> for &JumpRopeBuf {
     fn eq(&self, other: &String) -> bool {
         self.eq_str(other.as_str())
+    }
+}
+
+impl PartialEq<JumpRope> for JumpRopeBuf {
+    fn eq(&self, other: &JumpRope) -> bool {
+        self.borrow().eq(other)
+    }
+}
+
+impl PartialEq<JumpRopeBuf> for JumpRopeBuf {
+    fn eq(&self, other: &JumpRopeBuf) -> bool {
+        self.borrow().eq(other.borrow().deref())
+    }
+}
+
+impl Eq for JumpRopeBuf {}
+
+#[cfg(test)]
+mod test {
+    use crate::JumpRopeBuf;
+
+    // TODO: This could probably use more specific tests. JumpRopeBuf is currently thoroughly
+    // tested more deeply by a fuzzer, but it'd be good to have more tests here.
+
+    #[test]
+    fn is_empty() {
+        let mut r = JumpRopeBuf::new();
+        assert!(r.is_empty());
+
+        r.insert(0, "hi");
+        assert!(!r.is_empty());
+
+        // Force the rope to be flushed.
+        r.borrow();
+
+        r.remove(0..2);
+        assert!(r.is_empty());
     }
 }
