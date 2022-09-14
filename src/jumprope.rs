@@ -77,6 +77,11 @@ pub struct JumpRope {
     // list. The size is the size of the entire list.
 }
 
+/// JumpRope is Send and Sync, because the only way to (safely) mutate the rope is via a &mut
+/// reference.
+unsafe impl Send for JumpRope {}
+unsafe impl Sync for JumpRope {}
+
 pub(super) struct Node {
     // The first num_bytes of this store a valid utf8 string.
     // str: [u8; NODE_STR_SIZE],
