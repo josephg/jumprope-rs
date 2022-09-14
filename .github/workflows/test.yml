@@ -19,6 +19,6 @@ jobs:
     - name: Build
       run: cargo build
     - name: Run tests (base)
-      run: cargo test --features buffered
+      run: cargo test
     - name: Run tests (wchar)
-      run: cargo test --features "wchar_conversion,buffered"
+      run: cargo test --features "wchar_conversion"

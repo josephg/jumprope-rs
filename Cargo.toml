@@ -19,6 +19,8 @@ members = ["jumprope-wasm", "rope_benches", "crdt-testdata"]
 default = ["ddos_protection"]
 ddos_protection = []
 wchar_conversion = []
+
+# TODO: Remove me for 2.0 - the buffered feature is no longer needed.
 buffered = []
 
 [dependencies]
@@ -43,4 +45,4 @@ opt-level = 2
 
 
 [package.metadata.docs.rs]
-features = ["wchar_conversion", "buffered"]
+features = ["wchar_conversion"]

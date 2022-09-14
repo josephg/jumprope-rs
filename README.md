@@ -97,11 +97,7 @@ JumpRope also has an API for buffered edits. Usually when humans edit a string, 
 
 Jumprope provides a wrapper API to do this transparently in the form of [JumpRopeBuf](https://docs.rs/jumprope/latest/jumprope/struct.JumpRopeBuf.html). JumpRopeBuf does a best-effort attempt to merge incoming writes together before flushing (writing) them to the contained jumprope object.
 
-The API is not currently finalized, but if you want to use it anyway you can do so by enabling the `buffered` feature flag:
-
-```toml
-jumprope = { version = "1.0.0", features = ["buffered"] }
-```
+This API may be missing some methods found on `JumpRope`. You can usually work around any missing methods by calling `rope.borrow()` or `rope.as_mut()` to flush pending changes and access a pointer to the underlying rope. But please file issues if you find any missing functions, because adding direct implementations will usually result in better performance.
 
 See [JumpRopeBuf module documentation](https://docs.rs/jumprope/latest/jumprope/struct.JumpRopeBuf.html) for usage.
 
