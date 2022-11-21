@@ -1,3 +1,7 @@
+# 1.1.1
+
+- Fixed bug where reflexive eq (a == a) would fail for `&JumpRopeBuf`.
+
 # 1.1.0
 
 - The JumpRopeBuf feature has a lot more methods and is now stable, and included by default. The `buffered` feature flag is no longer needed. It now has no effect, and it will be removed in JumpRope 2.0 (whenever that happens). Please file issues if other useful methods are missing.
