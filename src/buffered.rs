@@ -359,7 +359,7 @@ impl PartialEq<JumpRope> for JumpRopeBuf {
 impl PartialEq<JumpRopeBuf> for JumpRopeBuf {
     fn eq(&self, other: &JumpRopeBuf) -> bool {
         // This check is important because we can't borrow the Cell twice at runtime.
-        (self as *const _) == (other as *const _)
+        std::ptr::eq(self as *const _, other as *const _)
             || self.borrow().eq(other.borrow().deref())
     }
 }

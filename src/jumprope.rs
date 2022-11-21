@@ -968,7 +968,7 @@ impl JumpRope {
         unsafe {
             while length > 0 {
                 {
-                    let s = (&*node).first_next();
+                    let s = (*node).first_next();
                     if offset_chars == s.skip_chars {
                         // End of current node. Skip to the start of the next one.
                         node = s.node;
@@ -976,7 +976,7 @@ impl JumpRope {
                     }
                 }
 
-                let num_chars = (&*node).num_chars();
+                let num_chars = (*node).num_chars();
                 let removed = std::cmp::min(length, num_chars - offset_chars);
                 assert!(removed > 0);
 
