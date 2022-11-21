@@ -358,7 +358,9 @@ impl PartialEq<JumpRope> for JumpRopeBuf {
 
 impl PartialEq<JumpRopeBuf> for JumpRopeBuf {
     fn eq(&self, other: &JumpRopeBuf) -> bool {
-        self.borrow().eq(other.borrow().deref())
+        // This check is important because we can't borrow the Cell twice at runtime.
+        (self as *const _) == (other as *const _)
+            || self.borrow().eq(other.borrow().deref())
     }
 }
 
@@ -384,5 +386,12 @@ mod test {
 
         r.remove(0..2);
         assert!(r.is_empty());
+    }
+
+    #[test]
+    fn eq_reflexive() {
+        // This was a regression.
+        let r = JumpRopeBuf::new();
+        assert_eq!(r, r);
     }
 }
