@@ -9,8 +9,8 @@ use std::ptr;
 use jumprope::JumpRope;
 use jumprope::JumpRopeBuf;
 
-const UNI_CHARS: [char; 23] = [
-  'a', 'b', 'c', '1', '2', '3', ' ', '_', // ASCII
+const UNI_CHARS: [char; 24] = [
+  '\n', 'a', 'b', 'c', '1', '2', '3', ' ', '_', // ASCII.
   '©', '¥', '½', // The Latin-1 suppliment (U+80 - U+ff)
   'Ύ', 'Δ', 'δ', 'Ϡ', // Greek (U+0370 - U+03FF)
   '←', '↯', '↻', '⇈', // Arrows (U+2190 – U+21FF)

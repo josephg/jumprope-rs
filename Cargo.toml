@@ -23,6 +23,9 @@ ddos_protection = []
 # ObjC) into local unicode offsets.
 wchar_conversion = []
 
+# Line conversion adds support for editing using line/column offsets instead of character offsets.
+line_conversion = []
+
 # TODO: Remove me for 2.0 - the buffered feature is no longer needed.
 buffered = []
 

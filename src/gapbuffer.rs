@@ -1,4 +1,6 @@
 use crate::fast_str_tools::*;
+#[cfg(feature = "line_conversion")]
+use crate::utils::count_lines;
 use crate::utils::str_chars_to_bytes_rev;
 
 #[derive(Debug, Clone, Eq)]
@@ -7,8 +9,14 @@ pub struct GapBuffer<const LEN: usize> {
 
     pub(crate) gap_start_bytes: u16,
     pub(crate) gap_start_chars: u16,
+
+    /// The number of UTF16 surrogate pairs before the gap.
     #[cfg(feature = "wchar_conversion")]
     pub(crate) gap_start_surrogate_pairs: u16,
+
+    /// The number of lines before the gap
+    #[cfg(feature = "line_conversion")]
+    pub(crate) gap_start_lines: u16,
 
     pub(crate) gap_len: u16,
     all_ascii: bool,
@@ -31,6 +39,8 @@ impl<const LEN: usize> GapBuffer<LEN> {
             gap_start_chars: 0,
             #[cfg(feature = "wchar_conversion")]
             gap_start_surrogate_pairs: 0,
+            #[cfg(feature = "line_conversion")]
+            gap_start_lines: 0,
             gap_len: LEN as u16,
             all_ascii: true,
         }
@@ -96,6 +106,10 @@ impl<const LEN: usize> GapBuffer<LEN> {
                     self.gap_start_surrogate_pairs -= surrogate_pairs as u16;
                 }
 
+                #[cfg(feature = "line_conversion")] {
+                    self.gap_start_lines -= count_lines(s) as u16;
+                }
+
                 self.gap_start_chars -= char_len as u16;
 
                 self.data.copy_within(moved_chars, new_start_bytes + len);
@@ -108,6 +122,10 @@ impl<const LEN: usize> GapBuffer<LEN> {
                 #[cfg(feature = "wchar_conversion")] {
                     let surrogate_pairs = self.int_count_surrogate_pairs(s);
                     self.gap_start_surrogate_pairs += surrogate_pairs as u16;
+                }
+
+                #[cfg(feature = "line_conversion")] {
+                    self.gap_start_lines += count_lines(s) as u16;
                 }
 
                 self.gap_start_chars += char_len as u16;
@@ -142,6 +160,10 @@ impl<const LEN: usize> GapBuffer<LEN> {
             self.gap_start_surrogate_pairs += count_utf16_surrogates(s) as u16;
         }
 
+        #[cfg(feature = "line_conversion")] {
+            self.gap_start_lines += count_lines(s) as u16;
+        }
+
         if len != char_len { self.all_ascii = false; }
     }
 
@@ -157,8 +179,8 @@ impl<const LEN: usize> GapBuffer<LEN> {
         }
     }
 
-    /// Remove chars "behind" the gap (ie, at gap .. gap+del_len)
-    pub fn remove_at_gap(&mut self, del_bytes: usize) {
+    /// Remove chars after the gap (ie, at gap .. gap+del_len)
+    pub fn remove_after_gap(&mut self, del_bytes: usize) {
         if cfg!(debug_assertions) {
             // Zero out the deleted bytes in debug mode.
             self.data[
@@ -178,7 +200,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
 
         self.move_gap(pos);
 
-        self.remove_at_gap(del_len);
+        self.remove_after_gap(del_len);
         del_len
     }
 
@@ -196,7 +218,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
         let mut rm_start_bytes = 0;
 
         let gap_chars = self.gap_start_chars as usize;
-        #[cfg(feature = "wchar_conversion")]
+        #[cfg(any(feature = "wchar_conversion", feature = "line_conversion"))]
         let gap_start_bytes = self.gap_start_bytes as usize;
         if pos <= gap_chars && pos+del_len >= gap_chars {
             if pos < gap_chars {
@@ -210,6 +232,13 @@ impl<const LEN: usize> GapBuffer<LEN> {
                 if !self.all_ascii {
                     self.gap_start_surrogate_pairs -= unsafe {
                         count_utf16_surrogates_in_bytes(&self.data[gap_start_bytes - rm_start_bytes..gap_start_bytes]) as u16
+                    }
+                }
+
+                #[cfg(feature = "line_conversion")] {
+                    unsafe {
+                        let s = std::str::from_utf8_unchecked(&self.data[gap_start_bytes - rm_start_bytes..gap_start_bytes]);
+                        self.gap_start_lines -= count_lines(s) as u16;
                     }
                 }
 
@@ -237,7 +266,7 @@ impl<const LEN: usize> GapBuffer<LEN> {
 
         // At this point the gap is guaranteed to be directly after pos.
         let rm_end_bytes = self.int_str_get_byte_offset(self.end_as_str(), del_len);
-        self.remove_at_gap(rm_end_bytes);
+        self.remove_after_gap(rm_end_bytes);
         rm_start_bytes as usize + rm_end_bytes
     }
 
@@ -331,6 +360,11 @@ impl<const LEN: usize> GapBuffer<LEN> {
         #[cfg(feature = "wchar_conversion")] {
             let pairs = count_utf16_surrogates(self.start_as_str());
             assert_eq!(pairs, self.gap_start_surrogate_pairs as usize);
+        }
+
+        #[cfg(feature = "line_conversion")] {
+            let lines = count_lines(self.start_as_str());
+            assert_eq!(lines, self.gap_start_lines as usize);
         }
 
         if self.all_ascii {

@@ -50,6 +50,12 @@ pub(crate) fn str_chars_to_bytes_rev(s: &str, char_len: usize) -> usize {
 //         .sum()
 // }
 
+#[cfg(feature = "line_conversion")]
+pub(crate) fn count_lines(s: &str) -> usize {
+    // I'm sure there's faster implementations of this but this will do for now.
+    s.as_bytes().iter().filter(|b| **b == ('\n' as u8)).count()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::utils::*;
@@ -71,5 +77,13 @@ mod tests {
     fn backwards_smoke_tests() {
         check_counts("hi there");
         check_counts("κό𝕐𝕆😘σμε");
+    }
+
+    #[test]
+    #[cfg(feature = "line_conversion")]
+    fn count_lines_tests() {
+        assert_eq!(count_lines(""), 0);
+        assert_eq!(count_lines("\n"), 1);
+        assert_eq!(count_lines("fop\n\n"), 2);
     }
 }
