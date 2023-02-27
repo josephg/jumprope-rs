@@ -7,6 +7,7 @@
 
 pub trait Rope: From<String> {
     const NAME: &'static str;
+    const EDITS_USE_BYTE_OFFSETS: bool = false;
 
     fn new() -> Self;
 

@@ -8,17 +8,20 @@ use serde::Deserialize;
 /// testing code.
 
 /// (position, delete length, insert content).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Eq, PartialEq)]
 pub struct TestPatch(pub usize, pub usize, pub String);
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Eq, PartialEq)]
 pub struct TestTxn {
     // time: String, // ISO String. Unused.
     pub patches: Vec<TestPatch>
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Eq, PartialEq)]
 pub struct TestData {
+    #[serde(default)]
+    pub using_byte_positions: bool,
+
     #[serde(rename = "startContent")]
     pub start_content: String,
     #[serde(rename = "endContent")]
@@ -36,6 +39,42 @@ impl TestData {
 
     pub fn is_empty(&self) -> bool {
         !self.txns.iter().any(|txn| !txn.patches.is_empty())
+    }
+
+    /// This method returns a clone of the testing data using byte offsets instead of codepoint
+    /// indexes.
+    pub fn chars_to_bytes(&self) -> Self {
+        assert_eq!(false, self.using_byte_positions);
+
+        let mut r = ropey::Rope::new();
+
+        Self {
+            using_byte_positions: true,
+            start_content: self.start_content.clone(),
+            end_content: self.end_content.clone(),
+            txns: self.txns.iter().map(|txn| {
+                TestTxn {
+                    patches: txn.patches.iter().map(|TestPatch(pos_chars, del_chars, ins)| {
+                        let pos_bytes = r.char_to_byte(*pos_chars);
+                        // if *pos_chars != pos_bytes {
+                        //     println!("Converted position {} to {}", *pos_chars, pos_bytes);
+                        // }
+                        let del_bytes = if *del_chars > 0 {
+                            let del_end_bytes = r.char_to_byte(pos_chars + *del_chars);
+                            r.remove(*pos_chars..*pos_chars + *del_chars);
+                            del_end_bytes - pos_bytes
+                        } else { 0 };
+                        if !ins.is_empty() { r.insert(*pos_chars, ins); }
+
+                        TestPatch(pos_bytes, del_bytes, ins.clone())
+                    }).collect(),
+                }
+            }).collect()
+        }
+    }
+
+    pub fn patches(&self) -> impl Iterator<Item=&TestPatch> {
+        self.txns.iter().flat_map(|txn| txn.patches.iter())
     }
 }
 
@@ -63,11 +102,66 @@ pub fn load_testing_data(filename: &str) -> TestData {
 
 #[cfg(test)]
 mod tests {
-    use crate::load_testing_data;
+    use crate::{load_testing_data, TestData, TestPatch, TestTxn};
 
     #[test]
     fn it_works() {
-        let data = load_testing_data("../../benchmark_data/sveltecomponent.json.gz");
+        let data = load_testing_data("../benchmark_data/sveltecomponent.json.gz");
         assert!(data.txns.len() > 0);
+    }
+
+    #[test]
+    fn convert_chars_to_bytes() {
+        let data = TestData {
+            using_byte_positions: false,
+            start_content: "".to_string(),
+            end_content: "".to_string(),
+            txns: vec![
+                TestTxn {
+                    patches: vec![
+                        TestPatch(0, 0, "ツ".into()),
+                        TestPatch(1, 0, "x".into()),
+                        TestPatch(1, 1, "".into()),
+                        TestPatch(0, 1, "".into()),
+                    ],
+                }
+            ],
+        };
+
+        // let data = load_testing_data("../benchmark_data/seph-blog1.json.gz");
+        // let data = load_testing_data("../benchmark_data/sveltecomponent.json.gz");
+        let data2 = data.chars_to_bytes();
+        dbg!(&data2);
+
+        assert_eq!(data2, TestData {
+            using_byte_positions: true,
+            start_content: "".to_string(),
+            end_content: "".to_string(),
+            txns: vec![
+                TestTxn {
+                    patches: vec![
+                        // Positions have changed!
+                        TestPatch(0, 0, "ツ".into()),
+                        TestPatch(3, 0, "x".into()),
+                        TestPatch(3, 1, "".into()),
+                        TestPatch(0, 3, "".into()),
+                    ],
+                }
+            ],
+        });
+
+        // dbg!(&data2);
+
+        for (p1, p2) in data.patches().zip(data2.patches()) {
+            // assert_eq!(p1.1, p2.1);
+            assert_eq!(p1.2, p2.2);
+            if p1.1 != p2.1 {
+                println!("{} / {} ({} {})", p1.0, p2.0, p1.1, p1.2);
+            }
+
+            // if p1.2.chars().count() != p1.2.len() {
+            //     println!("unicode! {}", p1.2);
+            // }
+        }
     }
 }

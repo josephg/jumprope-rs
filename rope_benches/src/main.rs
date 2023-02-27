@@ -17,14 +17,10 @@ mod edittablestr;
 
 use std::cmp::min;
 
-extern crate ropey;
-use self::ropey::Rope as RopeyRope;
-
-extern crate an_rope;
+use ropey::Rope as RopeyRope;
 use an_rope::Rope as AnRope;
-
-extern crate xi_rope;
 use xi_rope::Rope as XiRope;
+use crop::Rope as CropRope;
 
 const CHARS: &[u8; 83] = b" ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()[]{}<>?,./";
 
@@ -52,6 +48,34 @@ impl Rope for JumpRope {
     #[inline(always)]
     fn edit_at(&mut self, pos: usize, del_len: usize, ins_content: &str) {
         self.replace(pos..pos+del_len, ins_content);
+    }
+
+    #[inline(always)]
+    fn to_string(&self) -> String { ToString::to_string(self) }
+
+    #[inline(always)]
+    fn char_len(&self) -> usize { self.len_chars() } // in unicode values
+}
+
+impl Rope for JumpRopeBuf {
+    const NAME: &'static str = "JumpRopeBuf";
+
+    #[inline(always)]
+    fn new() -> Self { JumpRopeBuf::new() }
+
+    #[inline(always)]
+    fn insert_at(&mut self, pos: usize, contents: &str) { self.insert(pos, contents); }
+    #[inline(always)]
+    fn del_at(&mut self, pos: usize, len: usize) { self.remove(pos..pos+len); }
+
+    #[inline(always)]
+    fn edit_at(&mut self, pos: usize, del_len: usize, ins_content: &str) {
+        if del_len > 0 {
+            self.remove(pos..pos + del_len);
+        }
+        if !ins_content.is_empty() {
+            self.insert(pos, ins_content);
+        }
     }
 
     #[inline(always)]
@@ -136,6 +160,31 @@ impl Rope for RopeyRope {
 
     #[inline(always)]
     fn char_len(&self) -> usize { self.len_chars() } // in unicode values
+}
+
+impl Rope for CropRope {
+    const NAME: &'static str = "Crop";
+    const EDITS_USE_BYTE_OFFSETS: bool = true;
+
+    fn new() -> Self {
+        Self::new()
+    }
+
+    fn insert_at(&mut self, pos: usize, contents: &str) {
+        self.insert(pos, contents);
+    }
+
+    fn del_at(&mut self, pos: usize, len: usize) {
+        self.delete(pos..pos+len)
+    }
+
+    fn to_string(&self) -> String {
+        ToString::to_string(self)
+    }
+
+    fn char_len(&self) -> usize {
+        self.byte_len()
+    }
 }
 
 use std::os::raw::c_char;
@@ -340,17 +389,20 @@ const DATASETS: &[&str] = &["automerge-paper", "rustcode", "sveltecomponent", "s
 fn realworld(c: &mut Criterion) {
     for name in DATASETS {
         let mut group = c.benchmark_group("realworld");
-        let test_data = load_named_data(name);
-        group.throughput(Throughput::Elements(test_data.len() as u64));
+        let test_data_chars = load_named_data(name);
+        group.throughput(Throughput::Elements(test_data_chars.len() as u64));
+        let test_data_bytes = test_data_chars.chars_to_bytes();
 
         let mut all_ascii = true;
-        for txn in &test_data.txns {
+        for txn in &test_data_chars.txns {
             for TestPatch(_pos, _del, ins) in &txn.patches {
                 if ins.chars().count() != ins.len() { all_ascii = false; }
             }
         }
 
         fn x<R: Rope>(group: &mut BenchmarkGroup<WallTime>, name: &str, test_data: &TestData) {
+            assert_eq!(R::EDITS_USE_BYTE_OFFSETS, test_data.using_byte_positions);
+
             group.bench_function(BenchmarkId::new(R::NAME, name), |b| {
                 b.iter(|| {
                     let mut r = R::new();
@@ -365,14 +417,16 @@ fn realworld(c: &mut Criterion) {
             });
         }
 
-        x::<RopeyRope>(&mut group, name, &test_data);
-        x::<JumpRope>(&mut group, name, &test_data);
-        x::<CRope>(&mut group, name, &test_data);
+        x::<RopeyRope>(&mut group, name, &test_data_chars);
+        x::<JumpRope>(&mut group, name, &test_data_chars);
+        x::<JumpRopeBuf>(&mut group, name, &test_data_chars);
+        x::<CRope>(&mut group, name, &test_data_chars);
+        x::<CropRope>(&mut group, name, &test_data_bytes);
 
         // These two crash on non-ascii characters for some reason.
         if all_ascii {
             // Extremely slow.
-            x::<XiRope>(&mut group, name, &test_data);
+            x::<XiRope>(&mut group, name, &test_data_chars);
 
             // Crashes.
             // x::<AnRope>(&mut group, name, &test_data);
