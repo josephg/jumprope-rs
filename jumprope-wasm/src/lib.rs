@@ -1,10 +1,6 @@
 use wasm_bindgen::prelude::*;
 use jumprope::JumpRope;
 
-// Use `wee_alloc` as the global allocator. This saves 6kb in binary size.
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 #[wasm_bindgen]
 pub struct Rope(JumpRope);
 
