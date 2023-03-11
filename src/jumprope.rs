@@ -221,11 +221,11 @@ impl Node {
     }
 
     // The height is at least 1, so this is always valid.
-    pub(super) fn first_next<'a>(&self) -> &'a SkipEntry {
+    pub(super) fn first_next(&self) -> &SkipEntry {
         unsafe { &*self.nexts.as_ptr() }
     }
 
-    fn first_next_mut<'a>(&mut self) -> &'a mut SkipEntry {
+    fn first_next_mut(&mut self) -> &mut SkipEntry {
         unsafe { &mut *self.nexts.as_mut_ptr() }
     }
 
