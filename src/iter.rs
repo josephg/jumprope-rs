@@ -311,6 +311,15 @@ impl JumpRope {
     pub fn slice_chars(&self, range: Range<usize>) -> CharsInRange {
         self.slice_substrings_with_len(range).chars()
     }
+
+    // We also have a to_string implementation from Display, but that doesn't provide size hints.
+    pub fn to_string(&self) -> String {
+        let mut result = String::with_capacity(self.len_bytes());
+        for s in self.substrings() {
+            result.push_str(s);
+        }
+        result
+    }
 }
 
 #[cfg(test)]

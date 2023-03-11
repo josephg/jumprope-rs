@@ -9,7 +9,7 @@
 
 // use rope::*;
 
-use std::{ptr, str};
+use std::str;
 use std::cmp::min;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
@@ -112,17 +112,6 @@ pub(super) struct SkipEntry {
     pub(super) skip_pairs: usize,
 }
 
-impl Default for SkipEntry {
-    fn default() -> Self {
-        Self {
-            node: null_mut(),
-            skip_chars: 0,
-            #[cfg(feature = "wchar_conversion")]
-            skip_pairs: 0
-        }
-    }
-}
-
 // Make sure nexts uses correct alignment. This should be guaranteed by repr(C)
 // This test will fail if this ever stops being true.
 #[test]
@@ -139,15 +128,20 @@ fn random_height(rng: &mut RopeRng) -> u8 {
     h
 }
 
-
 impl SkipEntry {
     fn new() -> Self {
         SkipEntry {
-            node: ptr::null_mut(),
+            node: null_mut(),
             skip_chars: 0,
             #[cfg(feature = "wchar_conversion")]
             skip_pairs: 0
         }
+    }
+}
+
+impl Default for SkipEntry {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
