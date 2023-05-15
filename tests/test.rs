@@ -47,6 +47,12 @@ fn check(r: &JumpRope, expected: &str) {
     assert_eq!(r.len_chars(), expected.chars().count());
     #[cfg(feature = "wchar_conversion")] {
         assert_eq!(r.len_wchars(), expected.chars().map(|c| c.len_utf16()).sum());
+
+        assert_eq!(r.chars_to_wchars(r.len_chars()), r.len_wchars());
+        assert!(r.len_wchars() >= r.len_chars());
+
+        // And if we convert back, we should get the number of characters.
+        assert_eq!(r.wchars_to_chars(r.len_wchars()), r.len_chars());
     }
     assert_eq!(*r, JumpRope::from(expected), "Rope comparison fails");
 

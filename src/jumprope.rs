@@ -1413,7 +1413,8 @@ impl JumpRope {
     /// Convert from a unicode character count to a wchar index, like what you'd use in Javascript,
     /// Java or C#.
     pub fn chars_to_wchars(&self, chars: usize) -> usize {
-        self.read_cursor_at_char(chars, true).global_pairs
+        let cursor = self.read_cursor_at_char(chars, true);
+        cursor.global_pairs + chars
     }
 
     /// Convert a wchar index back to a unicode character count.
