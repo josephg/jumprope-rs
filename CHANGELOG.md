@@ -1,7 +1,10 @@
 # CURRENT
 
+# 1.1.2
+
 - Added explicit `rope.to_string()` method, because doing so is smaller and faster than going through the `Display` trait. Wasm bundle -1.5kb
 - Removed `wee_alloc` from wasm bundle. This makes the wasm bundle +6kb in size, but apparently wee_alloc [has memory leaks and is unmaintained](https://github.com/josephg/jumprope-rs/security/dependabot/1).
+- Fixed a terrible bug where `chars_to_wchars` returned the number of surrogate pairs rather than the wchar position. The return value would have been wrong in all cases. Testing fail - ouch!
 
 # 1.1.1
 
