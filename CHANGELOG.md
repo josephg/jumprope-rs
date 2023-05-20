@@ -1,5 +1,8 @@
 # CURRENT
 
+- Added `is_ascii_only` - mainly only useful for optimizing lookups for some strings.
+- Microoptimizations of some wchar functions when the rope is ascii only
+
 # 1.1.2
 
 - Added explicit `rope.to_string()` method, because doing so is smaller and faster than going through the `Display` trait. Wasm bundle -1.5kb
