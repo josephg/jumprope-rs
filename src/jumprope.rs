@@ -453,6 +453,13 @@ impl JumpRope {
         skip_pairs + skip_chars
     }
 
+    /// Does the rope only contain ASCII characters? (Unicode codepoints < 128). There are some
+    /// optimizations that can be done if this is true.
+    #[cfg(feature = "wchar_conversion")]
+    pub fn is_ascii_only(&self) -> bool {
+        self.head.nexts[self.head.height as usize - 1].skip_pairs == 0
+    }
+
     /// Returns read cursor and global surrogate pair position.
     ///
     /// Surrogate pairs are only counted if wchar_conversion feature enabled.
@@ -1413,8 +1420,13 @@ impl JumpRope {
     /// Convert from a unicode character count to a wchar index, like what you'd use in Javascript,
     /// Java or C#.
     pub fn chars_to_wchars(&self, chars: usize) -> usize {
-        let cursor = self.read_cursor_at_char(chars, true);
-        cursor.global_pairs + chars
+        // IF the rope is ascii-only then chars_to_wchars is the identity function.
+        if self.is_ascii_only() {
+            chars
+        } else {
+            let cursor = self.read_cursor_at_char(chars, true);
+            cursor.global_pairs + chars
+        }
     }
 
     /// Convert a wchar index back to a unicode character count.
@@ -1423,7 +1435,11 @@ impl JumpRope {
     /// rope with contents `𐆚` (a single character with wchar length 2), `wchars_to_chars(1)` is
     /// undefined and may panic / change in future versions of diamond types.
     pub fn wchars_to_chars(&self, wchars: usize) -> usize {
-        self.count_chars_at_wchar(wchars)
+        if self.is_ascii_only() {
+            wchars
+        } else {
+            self.count_chars_at_wchar(wchars)
+        }
     }
 
     /// Insert the given utf8 string into the rope at the specified wchar position.
